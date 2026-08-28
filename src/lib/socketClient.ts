@@ -166,7 +166,13 @@ class SocketService {
     try {
       localStorage.setItem('mafia_playerName', hostName);
     } catch (e) {}
-    this.socket?.emit('createRoom', { 
+
+    const s = this.connect();
+    if (!s.connected) {
+      s.connect();
+    }
+
+    s.emit('createRoom', { 
       hostName, 
       hostId: this.playerId,
       config 
@@ -178,7 +184,13 @@ class SocketService {
       localStorage.setItem('mafia_roomCode', roomCode);
       localStorage.setItem('mafia_playerName', playerName);
     } catch (e) {}
-    this.socket?.emit('joinRoom', { 
+
+    const s = this.connect();
+    if (!s.connected) {
+      s.connect();
+    }
+
+    s.emit('joinRoom', { 
       roomCode, 
       playerName, 
       playerId: this.playerId 

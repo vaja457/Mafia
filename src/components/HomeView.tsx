@@ -32,8 +32,9 @@ export const HomeView: React.FC = () => {
   const [roomCode, setRoomCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Check URL param for ?room=CODE
+  // Check URL param for ?room=CODE and ensure socket connected
   useEffect(() => {
+    socketClient.connect();
     const params = new URLSearchParams(window.location.search);
     const codeFromUrl = params.get('room');
     if (codeFromUrl) {
@@ -44,7 +45,7 @@ export const HomeView: React.FC = () => {
 
   const handleCreateRoom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!hostName.trim() || isSubmitting) return;
+    if (!hostName.trim()) return;
 
     setIsSubmitting(true);
 
@@ -62,12 +63,12 @@ export const HomeView: React.FC = () => {
       nightDurationSeconds: nightDuration
     });
 
-    setTimeout(() => setIsSubmitting(false), 5000);
+    setTimeout(() => setIsSubmitting(false), 4000);
   };
 
   const handleJoinRoom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!playerName.trim() || !roomCode.trim() || isSubmitting) return;
+    if (!playerName.trim() || !roomCode.trim()) return;
 
     setIsSubmitting(true);
 
@@ -75,7 +76,7 @@ export const HomeView: React.FC = () => {
 
     socketClient.joinRoom(roomCode.trim().toUpperCase(), playerName.trim());
 
-    setTimeout(() => setIsSubmitting(false), 5000);
+    setTimeout(() => setIsSubmitting(false), 4000);
   };
 
   return (

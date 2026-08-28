@@ -48,6 +48,14 @@ export const LobbyView: React.FC<LobbyViewProps> = ({ gameState, onOpenShareModa
     socketClient.startGame(gameState.roomCode);
   };
 
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(gameState.roomCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
   return (
     <div className="w-full max-w-lg mx-auto pb-20 animate-fade-in">
       {/* Lobby Banner Card */}
@@ -57,7 +65,26 @@ export const LobbyView: React.FC<LobbyViewProps> = ({ gameState, onOpenShareModa
         <div className="flex items-center justify-between mb-3">
           <div>
             <span className="text-xs uppercase font-bold tracking-widest text-rose-400">სათამაშო ოთახი</span>
-            <h2 className="text-3xl font-extrabold text-white font-mono tracking-wider">{gameState.roomCode}</h2>
+            <div className="flex items-center gap-2 mt-0.5">
+              <h2 className="text-3xl font-extrabold text-white font-mono tracking-wider">{gameState.roomCode}</h2>
+              <button
+                onClick={handleCopyCode}
+                title="ოთახის კოდის კოპირება"
+                className="flex items-center gap-1 bg-slate-900/90 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white transition-all btn-press shadow-sm"
+              >
+                {copiedCode ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-400 font-bold">კოპირებულია!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-slate-400" />
+                    <span>კოპირება</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button
