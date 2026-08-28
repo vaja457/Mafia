@@ -44,13 +44,21 @@ export const Header: React.FC<HeaderProps> = ({ gameState, isConnected, onOpenSh
 
   const isNight = gameState?.phase.includes('night');
 
+  const handleLogoClick = () => {
+    window.location.href = window.location.origin;
+  };
+
   return (
-    <header className="sticky top-0 z-40 w-full glass-panel border-b border-slate-800/80 px-4 py-2.5 flex items-center justify-between shadow-lg">
+    <header className="sticky top-0 z-40 w-full glass-panel border-b border-slate-800/80 px-4 pb-3 pt-safe flex items-center justify-between shadow-lg">
       <div className="flex items-center gap-2.5">
-        <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/60 px-2.5 py-1 rounded-lg text-xs font-mono font-bold tracking-wider text-rose-400">
-          <span>#</span>
+        <button
+          onClick={handleLogoClick}
+          title="მთავარ გვერდზე დაბრუნება / განახლება"
+          className="flex items-center gap-1.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/60 active:scale-95 px-3 py-1.5 rounded-xl text-xs font-mono font-bold tracking-wider text-rose-400 transition-all btn-press shadow-sm group"
+        >
+          <span className="text-rose-500 group-hover:rotate-180 transition-transform duration-300">#</span>
           <span>{gameState?.roomCode || 'MAFIA'}</span>
-        </div>
+        </button>
         
         {gameState && gameState.phase !== 'lobby' && (
           <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border ${

@@ -22,7 +22,7 @@ export const AudioSubtitleToast: React.FC = () => {
   if (!visible || !subtitle) return null;
 
   return (
-    <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] sm:max-w-md w-full px-2 pointer-events-none animate-slide-up">
+    <div className="fixed top-[calc(max(env(safe-area-inset-top,0px),12px)+3.5rem)] left-1/2 -translate-x-1/2 z-50 max-w-[92vw] sm:max-w-md w-full px-2 pointer-events-none animate-slide-up">
       <div className="bg-slate-900/95 border border-rose-500/40 shadow-2xl shadow-rose-950/50 rounded-2xl px-4 py-3 text-center flex items-center justify-center gap-2.5 backdrop-blur-lg">
         <div className="p-1.5 rounded-full bg-rose-600/20 text-rose-400 shrink-0 animate-pulse">
           <Volume2 className="w-4 h-4" />
