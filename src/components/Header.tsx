@@ -15,8 +15,12 @@ export const Header: React.FC<HeaderProps> = ({ gameState, isConnected, onOpenSh
   const [copied, setCopied] = useState(false);
 
   const handleToggleMute = () => {
+    audioManager.unlockAudio();
     const muted = audioManager.toggleMute();
     setIsMuted(muted);
+    if (!muted) {
+      audioManager.playDonWakeChime();
+    }
   };
 
   const handleCopyLink = () => {

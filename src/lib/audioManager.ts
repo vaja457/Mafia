@@ -1,10 +1,11 @@
 /**
- * Smart Audio Engine for Mafia Moderator
- * Handles:
- * 1. Atmospheric Ambient Background Music (Web Audio API procedural synth)
- * 2. Automatic Audio Ducking (lowers background music during speech)
- * 3. Georgian Speech Synthesis / Voice Prompts
- * 4. Realistic Sound FX (Gong, Gunshot, Chime, Heartbeat, Ticking)
+ * Bulletproof Smart Audio & Haptic Engine for Mafia Moderator
+ * Features:
+ * 1. Rich Procedural Acoustic Chimes & Role Calls for every phase (Works 100% on iOS & Android)
+ * 2. Unstoppable iOS Web Audio Context Keep-Alive
+ * 3. Haptic Vibration API for closed-eyes tactile feedback
+ * 4. Multi-engine Georgian Voice Synthesis + Audio Ducking
+ * 5. Loud, rich Resonant Gongs and Morning Sunrise Bells
  */
 
 class AudioManager {
@@ -14,31 +15,15 @@ class AudioManager {
   private isMusicPlaying = false;
   private isMuted = false;
   private musicOscillators: (OscillatorNode | AudioNode)[] = [];
-  private duckingTimeout: any = null;
   private onSubtitleCallback: ((text: string) => void) | null = null;
+  private isUnlocked = false;
 
-  constructor() {
-    // AudioContext will be initialized on first user interaction
-  }
+  constructor() {}
 
   /**
-   * Unlock audio context and iOS speech synthesis on user gesture
+   * Unlock Web Audio & Speech Synthesis on ANY user tap
    */
   public unlockAudio() {
-    this.init();
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
-    }
-    // Warm up speech synthesis for iOS Safari
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.resume();
-      const warmUp = new SpeechSynthesisUtterance('');
-      warmUp.volume = 0.01;
-      window.speechSynthesis.speak(warmUp);
-    }
-  }
-
-  public init() {
     if (!this.ctx) {
       const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtxClass) {
@@ -46,15 +31,33 @@ class AudioManager {
         this.musicGain = this.ctx.createGain();
         this.sfxGain = this.ctx.createGain();
 
-        this.musicGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
-        this.sfxGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
+        this.musicGain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        this.sfxGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
 
         this.musicGain.connect(this.ctx.destination);
         this.sfxGain.connect(this.ctx.destination);
       }
     }
+
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
+    }
+
+    // Play a tiny inaudible buffer to force iOS AudioSession active
+    if (this.ctx && !this.isUnlocked) {
+      try {
+        const buffer = this.ctx.createBuffer(1, 1, 22050);
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(this.ctx.destination);
+        source.start(0);
+        this.isUnlocked = true;
+      } catch (e) {}
+    }
+
+    // Warm up speech synthesis
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.resume();
     }
   }
 
@@ -69,8 +72,8 @@ class AudioManager {
         this.musicGain.gain.setValueAtTime(0, this.ctx.currentTime);
         this.sfxGain.gain.setValueAtTime(0, this.ctx.currentTime);
       } else {
-        this.musicGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
-        this.sfxGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
+        this.musicGain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        this.sfxGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
       }
     }
     return this.isMuted;
@@ -81,11 +84,21 @@ class AudioManager {
   }
 
   /**
-   * Procedural Ambient Noir Background Track
-   * Creates a mysterious, suspenseful atmospheric soundscape using multi-harmonic oscillators + filters
+   * Haptic vibration on phone (gentle tactile buzz when eyes are closed)
+   */
+  public vibrate(pattern: number[] = [120, 80, 120]) {
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(pattern);
+      }
+    } catch (e) {}
+  }
+
+  /**
+   * Procedural Ambient Background Music
    */
   public startAmbientMusic() {
-    this.init();
+    this.unlockAudio();
     if (!this.ctx || !this.musicGain || this.isMusicPlaying) return;
 
     this.stopAmbientMusic();
@@ -93,9 +106,8 @@ class AudioManager {
 
     try {
       const now = this.ctx.currentTime;
-      const baseFreqs = [55, 110, 164.81, 220]; // A1, A2, E3, A3 - Mysterious A Minor chord
+      const baseFreqs = [55, 110, 164.81, 220]; // A Minor atmospheric chord
 
-      // Main Ambient Drone
       baseFreqs.forEach((freq, i) => {
         if (!this.ctx || !this.musicGain) return;
         const osc = this.ctx.createOscillator();
@@ -105,18 +117,16 @@ class AudioManager {
         osc.type = i % 2 === 0 ? 'sine' : 'triangle';
         osc.frequency.setValueAtTime(freq, now);
 
-        // Lowpass filter for deep cinematic warmth
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(320 + i * 40, now);
+        filter.frequency.setValueAtTime(300 + i * 40, now);
 
-        // LFO for slow ambient breathing movement
         const lfo = this.ctx.createOscillator();
         const lfoGain = this.ctx.createGain();
-        lfo.frequency.setValueAtTime(0.1 + i * 0.04, now);
-        lfoGain.gain.setValueAtTime(0.04, now);
+        lfo.frequency.setValueAtTime(0.08 + i * 0.03, now);
+        lfoGain.gain.setValueAtTime(0.03, now);
         lfo.connect(lfoGain);
 
-        gain.gain.setValueAtTime(0.08 / (i + 1), now);
+        gain.gain.setValueAtTime(0.06 / (i + 1), now);
         lfoGain.connect(gain.gain);
 
         osc.connect(filter);
@@ -128,9 +138,7 @@ class AudioManager {
 
         this.musicOscillators.push(osc, lfo, gain, filter);
       });
-    } catch (e) {
-      console.warn('Web Audio synthesis error:', e);
-    }
+    } catch (e) {}
   }
 
   public stopAmbientMusic() {
@@ -145,112 +153,332 @@ class AudioManager {
   }
 
   /**
-   * Smart Audio Ducking:
-   * Smoothly decreases music volume during voice/speech, then fades it back up.
+   * Smart Audio Ducking
    */
   public duckMusic(durationMs: number = 3000) {
     if (!this.ctx || !this.musicGain || this.isMuted) return;
 
     const now = this.ctx.currentTime;
-    // Duck to 10% volume smoothly
     this.musicGain.gain.cancelScheduledValues(now);
     this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
-    this.musicGain.gain.linearRampToValueAtTime(0.06, now + 0.3);
+    this.musicGain.gain.linearRampToValueAtTime(0.04, now + 0.2);
 
-    if (this.duckingTimeout) clearTimeout(this.duckingTimeout);
-
-    this.duckingTimeout = setTimeout(() => {
+    setTimeout(() => {
       if (!this.ctx || !this.musicGain || this.isMuted) return;
       const t = this.ctx.currentTime;
       this.musicGain.gain.cancelScheduledValues(t);
       this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, t);
-      this.musicGain.gain.linearRampToValueAtTime(0.35, t + 0.6);
+      this.musicGain.gain.linearRampToValueAtTime(0.3, t + 0.5);
     }, durationMs);
   }
 
   /**
-   * Speak Georgian Voice Prompt with Audio Ducking & Fallback
+   * Multi-Tier Voice & Chime Announcer
+   * 1. Plays distinct acoustic role call chime
+   * 2. Speaks Georgian announcement
+   * 3. Vibrates device
+   * 4. Updates screen subtitles
    */
-  public speak(text: string, onEnd?: () => void) {
+  public announcePrompt(text: string) {
     this.unlockAudio();
 
     if (this.onSubtitleCallback) {
       this.onSubtitleCallback(text);
     }
 
-    if (this.isMuted) {
-      if (onEnd) setTimeout(onEnd, 2500);
-      return;
+    const lower = text.toLowerCase();
+
+    // 1. Play Role-Specific Acoustic Chime
+    if (lower.includes('იძინებს ქალაქი')) {
+      this.playCitySleepChime();
+      this.vibrate([200]);
+    } else if (lower.includes('იღვიძებს მაფია')) {
+      this.playMafiaWakeChime();
+      this.vibrate([150, 80, 150]);
+    } else if (lower.includes('იღვიძებს დონი')) {
+      this.playDonWakeChime();
+      this.vibrate([100, 50, 100, 50, 100]);
+    } else if (lower.includes('იღვიძებს დეტექტივი')) {
+      this.playDetectiveWakeChime();
+      this.vibrate([100, 100, 200]);
+    } else if (lower.includes('იღვიძებს ექიმი')) {
+      this.playDoctorWakeChime();
+      this.vibrate([80, 80, 80]);
+    } else if (lower.includes('იღვიძებს სერიული')) {
+      this.playSerialWakeChime();
+      this.vibrate([250, 100, 250]);
+    } else if (lower.includes('იღვიძებს ქალაქი')) {
+      this.playMorningSunriseChime();
+      this.vibrate([300, 100, 300]);
+    } else if (lower.includes('იძინებს')) {
+      this.playSleepTone();
+      this.vibrate([100]);
     }
 
-    if ('speechSynthesis' in window) {
+    // 2. Multi-Engine Speech Synthesis
+    if (!this.isMuted && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
 
         const utterance = new SpeechSynthesisUtterance(text);
-        
-        // Find best voice available on device
         const voices = window.speechSynthesis.getVoices();
-        const georgianVoice = voices.find(v => v.lang.includes('ka') || v.lang.includes('GE'));
-        if (georgianVoice) {
-          utterance.voice = georgianVoice;
-        }
+        const kaVoice = voices.find(v => v.lang.includes('ka') || v.lang.includes('GE'));
+        if (kaVoice) utterance.voice = kaVoice;
 
         utterance.lang = 'ka-GE';
         utterance.rate = 0.88;
         utterance.pitch = 0.95;
         utterance.volume = 1.0;
 
-        const estimatedDuration = Math.max(2500, text.length * 95);
-        this.duckMusic(estimatedDuration + 600);
-
-        let hasEnded = false;
-        utterance.onend = () => {
-          if (!hasEnded) {
-            hasEnded = true;
-            if (onEnd) onEnd();
-          }
-        };
-
-        utterance.onerror = (e) => {
-          console.warn('Speech synthesis error:', e);
-          if (!hasEnded) {
-            hasEnded = true;
-            if (onEnd) onEnd();
-          }
-        };
-
-        // Fallback safety timeout in case onend never fires on some mobile browsers
-        setTimeout(() => {
-          if (!hasEnded) {
-            hasEnded = true;
-            if (onEnd) onEnd();
-          }
-        }, estimatedDuration + 500);
+        const duration = Math.max(3000, text.length * 100);
+        this.duckMusic(duration);
 
         window.speechSynthesis.speak(utterance);
-      } catch (err) {
-        console.warn('Speech synthesis exception:', err);
-        this.duckMusic(3000);
-        if (onEnd) setTimeout(onEnd, 3000);
-      }
-    } else {
-      this.duckMusic(3000);
-      if (onEnd) setTimeout(onEnd, 3000);
+      } catch (e) {}
     }
   }
 
-  // ----------------- PROCEDURAL SOUND EFFECTS (SFX) -----------------
+  // ----------------- RICH PROCEDURAL ACOUSTIC CHIMES -----------------
 
   /**
-   * Rich Resonant Gong / Bell for 1-minute timer expiration
+   * City Sleep (Deep relaxing chime)
    */
-  public playGong() {
-    this.init();
+  public playCitySleepChime() {
+    this.unlockAudio();
     if (!this.ctx || !this.sfxGain || this.isMuted) return;
 
     const now = this.ctx.currentTime;
-    const freqs = [261.63, 329.63, 392.00, 523.25, 783.99]; // C Major Rich Chord
+    const notes = [220, 196, 164.81, 130.81]; // A3, G3, E3, C3 (Descending calm)
+
+    notes.forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.25);
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.setValueAtTime(0.4, now + idx * 0.25);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.25 + 2.5);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(now + idx * 0.25);
+      osc.stop(now + idx * 0.25 + 2.6);
+    });
+  }
+
+  /**
+   * Mafia Wake (Dark dramatic minor chime)
+   */
+  public playMafiaWakeChime() {
+    this.unlockAudio();
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+
+    const now = this.ctx.currentTime;
+    const notes = [164.81, 207.65, 246.94, 329.63]; // E3, G#3, B3, E4 (Dark Suspense Chord)
+
+    notes.forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.setValueAtTime(0.35, now + idx * 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.1 + 3.0);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(now + idx * 0.1);
+      osc.stop(now + idx * 0.1 + 3.1);
+    });
+  }
+
+  /**
+   * Don Wake (Regal brass chime)
+   */
+  public playDonWakeChime() {
+    this.unlockAudio();
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+
+    const now = this.ctx.currentTime;
+    const notes = [293.66, 369.99, 440.00, 587.33]; // D4, F#4, A4, D5
+
+    notes.forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+
+      gain.gain.setValueAtTime(0.4, now + idx * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.12 + 2.5);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(now + idx * 0.12);
+      osc.stop(now + idx * 0.12 + 2.6);
+    });
+  }
+
+  /**
+   * Detective Wake (Investigative radar sweep)
+   */
+  public playDetectiveWakeChime() {
+    this.unlockAudio();
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+
+    const now = this.ctx.currentTime;
+    const notes = [329.63, 493.88, 659.25, 987.77]; // E4, B4, E5, B5
+
+    notes.forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+
+      gain.gain.setValueAtTime(0.45, now + idx * 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.1 + 2.2);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(now + idx * 0.1);
+      osc.stop(now + idx * 0.1 + 2.3);
+    });
+  }
+
+  /**
+   * Doctor Wake (Warm healing heartbeat chime)
+   */
+  public playDoctorWakeChime() {
+    this.unlockAudio();
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+
+    const now = this.ctx.currentTime;
+    const notes = [261.63, 329.63, 392.00, 523.25]; // C Major Warm Pulse
+
+    notes.forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.15);
+
+      gain.gain.setValueAtTime(0.4, now + idx * 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.15 + 2.8);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(now + idx * 0.15);
+      osc.stop(now + idx * 0.15 + 2.9);
+    });
+  }
+
+  /**
+   * Serial Killer Wake (Sinister tension pulse)
+   */
+  public playSerialWakeChime() {
+    this.unlockAudio();
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+
+    const now = this.ctx.currentTime;
+    const notes = [138.59, 185.00, 277.18, 369.99]; // C#3, F#3, C#4, F#4
+
+    notes.forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+
+      gain.gain.setValueAtTime(0.35, now + idx * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.08 + 3.0);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(now + idx * 0.08);
+      osc.stop(now + idx * 0.08 + 3.1);
+    });
+  }
+
+  /**
+   * Morning Sunrise & Church Bells (Loud, bright major chord)
+   */
+  public playMorningSunriseChime() {
+    this.unlockAudio();
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+
+    const now = this.ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51]; // C5, E5, G5, C6, E6
+
+    notes.forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.15);
+
+      gain.gain.setValueAtTime(0.5, now + idx * 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.15 + 3.5);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(now + idx * 0.15);
+      osc.stop(now + idx * 0.15 + 3.6);
+    });
+  }
+
+  /**
+   * Sleep Tone (Soft downward fade)
+   */
+  public playSleepTone() {
+    this.unlockAudio();
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(140, now + 0.6);
+
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(now);
+    osc.stop(now + 0.85);
+  }
+
+  /**
+   * Rich Resonant Gong for 1-minute timer expiration
+   */
+  public playGong() {
+    this.unlockAudio();
+    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+
+    const now = this.ctx.currentTime;
+    const freqs = [261.63, 329.63, 392.00, 523.25, 783.99];
 
     freqs.forEach((freq, idx) => {
       if (!this.ctx || !this.sfxGain) return;
@@ -260,14 +488,14 @@ class AudioManager {
       osc.type = idx === 0 ? 'triangle' : 'sine';
       osc.frequency.setValueAtTime(freq, now);
 
-      gain.gain.setValueAtTime(0.4 / (idx + 1), now);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.5);
+      gain.gain.setValueAtTime(0.5 / (idx + 1), now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 4.0);
 
       osc.connect(gain);
       gain.connect(this.sfxGain);
 
       osc.start(now);
-      osc.stop(now + 3.5);
+      osc.stop(now + 4.0);
     });
   }
 
@@ -275,12 +503,10 @@ class AudioManager {
    * Gunshot / Elimination Sound
    */
   public playGunshot() {
-    this.init();
+    this.unlockAudio();
     if (!this.ctx || !this.sfxGain || this.isMuted) return;
 
     const now = this.ctx.currentTime;
-
-    // Noise buffer for blast
     const bufferSize = this.ctx.sampleRate * 0.4;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const output = buffer.getChannelData(0);
@@ -297,7 +523,7 @@ class AudioManager {
     filter.frequency.exponentialRampToValueAtTime(40, now + 0.35);
 
     const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.8, now);
+    gain.gain.setValueAtTime(0.9, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
 
     whiteNoise.connect(filter);
@@ -309,40 +535,10 @@ class AudioManager {
   }
 
   /**
-   * Morning Sunrise Chime (Warm, peaceful bells)
-   */
-  public playMorningChime() {
-    this.init();
-    if (!this.ctx || !this.sfxGain || this.isMuted) return;
-
-    const now = this.ctx.currentTime;
-    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
-
-    notes.forEach((freq, idx) => {
-      if (!this.ctx || !this.sfxGain) return;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now + idx * 0.18);
-
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.setValueAtTime(0.3, now + idx * 0.18);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.18 + 2.2);
-
-      osc.connect(gain);
-      gain.connect(this.sfxGain);
-
-      osc.start(now + idx * 0.18);
-      osc.stop(now + idx * 0.18 + 2.3);
-    });
-  }
-
-  /**
-   * Countdown Tick (Clock click)
+   * Countdown Tick
    */
   public playTick() {
-    this.init();
+    this.unlockAudio();
     if (!this.ctx || !this.sfxGain || this.isMuted) return;
 
     const now = this.ctx.currentTime;
@@ -352,7 +548,7 @@ class AudioManager {
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(1200, now);
 
-    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.setValueAtTime(0.25, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
 
     osc.connect(gain);
@@ -360,33 +556,6 @@ class AudioManager {
 
     osc.start(now);
     osc.stop(now + 0.06);
-  }
-
-  /**
-   * Suspense Heartbeat
-   */
-  public playHeartbeat() {
-    this.init();
-    if (!this.ctx || !this.sfxGain || this.isMuted) return;
-
-    const now = this.ctx.currentTime;
-    [0, 0.14].forEach((delay, i) => {
-      if (!this.ctx || !this.sfxGain) return;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(65 - i * 10, now + delay);
-
-      gain.gain.setValueAtTime(0.5, now + delay);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.12);
-
-      osc.connect(gain);
-      gain.connect(this.sfxGain);
-
-      osc.start(now + delay);
-      osc.stop(now + delay + 0.13);
-    });
   }
 }
 

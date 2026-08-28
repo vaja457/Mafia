@@ -415,21 +415,17 @@ function runAutomatedNightStep(game) {
     game.nightStepTimeLeft = dur;
     broadcastGameState(game);
 
-    if (hostTarget) {
-      io.to(hostTarget).emit('playAudioPrompt', {
-        text: `იძინებს ქალაქი. იღვიძებს მაფია და ეცნობა ერთმანეთს, მაფიას აქვს ${dur} წამი მოსაფიქრებლად.`,
-        duration: dur
-      });
-    }
+    io.to(game.roomCode).emit('playAudioPrompt', {
+      text: `იძინებს ქალაქი. იღვიძებს მაფია და ეცნობა ერთმანეთს, მაფიას აქვს ${dur} წამი მოსაფიქრებლად.`,
+      duration: dur
+    });
 
     const timer = setTimeout(() => {
       if (game.phase !== 'night_1_intro') return;
-      if (hostTarget) {
-        io.to(hostTarget).emit('playAudioPrompt', {
-          text: 'იძინებს მაფია. იღვიძებს ქალაქი.',
-          duration: 4
-        });
-      }
+      io.to(game.roomCode).emit('playAudioPrompt', {
+        text: 'იძინებს მაფია. იღვიძებს ქალაქი.',
+        duration: 4
+      });
 
       setTimeout(() => {
         if (game.phase !== 'night_1_intro') return;
@@ -458,12 +454,10 @@ function runAutomatedNightStep(game) {
       game.nightStepTimeLeft = dur;
       broadcastGameState(game);
 
-      if (hostTarget) {
-        io.to(hostTarget).emit('playAudioPrompt', {
-          text: `იძინებს ქალაქი. იღვიძებს მაფია და ირჩევს მსხვერპლს, მაფიას აქვს ${dur} წამი მოსაფიქრებლად.`,
-          duration: dur
-        });
-      }
+      io.to(game.roomCode).emit('playAudioPrompt', {
+        text: `იძინებს ქალაქი. იღვიძებს მაფია და ირჩევს მსხვერპლს, მაფიას აქვს ${dur} წამი მოსაფიქრებლად.`,
+        duration: dur
+      });
 
       const timer = setTimeout(() => {
         if (game.phase !== 'night_action') return;
@@ -475,12 +469,10 @@ function runAutomatedNightStep(game) {
       game.nightStepTimeLeft = stepDuration;
       broadcastGameState(game);
 
-      if (hostTarget) {
-        io.to(hostTarget).emit('playAudioPrompt', {
-          text: `იძინებს მაფია. იღვიძებს დონი და ეძებს დეტექტივს, დონს აქვს ${stepDuration} წამი.`,
-          duration: stepDuration
-        });
-      }
+      io.to(game.roomCode).emit('playAudioPrompt', {
+        text: `იძინებს მაფია. იღვიძებს დონი და ეძებს დეტექტივს, დონს აქვს ${stepDuration} წამი.`,
+        duration: stepDuration
+      });
 
       const timer = setTimeout(() => {
         if (game.phase !== 'night_action') return;
@@ -492,12 +484,10 @@ function runAutomatedNightStep(game) {
       game.nightStepTimeLeft = stepDuration;
       broadcastGameState(game);
 
-      if (hostTarget) {
-        io.to(hostTarget).emit('playAudioPrompt', {
-          text: `იღვიძებს დეტექტივი და ამოწმებს მოთამაშეს, დეტექტივს აქვს ${stepDuration} წამი.`,
-          duration: stepDuration
-        });
-      }
+      io.to(game.roomCode).emit('playAudioPrompt', {
+        text: `იღვიძებს დეტექტივი და ამოწმებს მოთამაშეს, დეტექტივს აქვს ${stepDuration} წამი.`,
+        duration: stepDuration
+      });
 
       const timer = setTimeout(() => {
         if (game.phase !== 'night_action') return;
@@ -509,12 +499,10 @@ function runAutomatedNightStep(game) {
       game.nightStepTimeLeft = stepDuration;
       broadcastGameState(game);
 
-      if (hostTarget) {
-        io.to(hostTarget).emit('playAudioPrompt', {
-          text: `იღვიძებს ექიმი და ჰილავს მოთამაშეს, ექიმს აქვს ${stepDuration} წამი.`,
-          duration: stepDuration
-        });
-      }
+      io.to(game.roomCode).emit('playAudioPrompt', {
+        text: `იღვიძებს ექიმი და ჰილავს მოთამაშეს, ექიმს აქვს ${stepDuration} წამი.`,
+        duration: stepDuration
+      });
 
       const timer = setTimeout(() => {
         if (game.phase !== 'night_action') return;
@@ -526,12 +514,10 @@ function runAutomatedNightStep(game) {
       game.nightStepTimeLeft = stepDuration;
       broadcastGameState(game);
 
-      if (hostTarget) {
-        io.to(hostTarget).emit('playAudioPrompt', {
-          text: `იღვიძებს სერიული მკვლელი, სერიულს აქვს ${stepDuration} წამი.`,
-          duration: stepDuration
-        });
-      }
+      io.to(game.roomCode).emit('playAudioPrompt', {
+        text: `იღვიძებს სერიული მკვლელი, სერიულს აქვს ${stepDuration} წამი.`,
+        duration: stepDuration
+      });
 
       const timer = setTimeout(() => {
         if (game.phase !== 'night_action') return;
@@ -612,15 +598,11 @@ function advanceToNextNightRole(game) {
 
 function resolveNightOutcome(game) {
   clearRoomNightTimer(game.roomCode);
-  const host = game.players.find(p => p.isHost);
-  const hostTarget = host ? (host.socketId || host.id) : null;
 
-  if (hostTarget) {
-    io.to(hostTarget).emit('playAudioPrompt', {
-      text: 'იძინებს ყველა. იღვიძებს ქალაქი.',
-      duration: 4
-    });
-  }
+  io.to(game.roomCode).emit('playAudioPrompt', {
+    text: 'იძინებს ყველა. იღვიძებს ქალაქი.',
+    duration: 4
+  });
 
   setTimeout(() => {
     const deadThisNight = new Set();

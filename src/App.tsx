@@ -36,11 +36,11 @@ export const App: React.FC = () => {
       setTimeout(() => setErrorMessage(null), 4000);
     });
 
-    // Realtime Voice Prompt from Server
+    // Realtime Voice & Acoustic Role Call Prompt from Server
     socketClient.on('playAudioPrompt', (data: { text: string; duration?: number }) => {
       if (data?.text) {
         audioManager.startAmbientMusic();
-        audioManager.speak(data.text);
+        audioManager.announcePrompt(data.text);
       }
     });
 
