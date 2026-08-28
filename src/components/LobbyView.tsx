@@ -59,13 +59,23 @@ export const LobbyView: React.FC<LobbyViewProps> = ({ gameState, onOpenShareModa
             <span className="text-xs uppercase font-bold tracking-widest text-rose-400">სათამაშო ოთახი</span>
             <h2 className="text-3xl font-extrabold text-white font-mono tracking-wider">{gameState.roomCode}</h2>
           </div>
-          <button
-            onClick={onOpenShareModal}
-            className="flex items-center gap-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 px-3.5 py-2 rounded-2xl text-xs font-semibold transition-all btn-press shadow-md"
-          >
-            <Share2 className="w-4 h-4" />
-            <span>მოწვევა</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => audioManager.testSound()}
+              title="ხმის შემოწმება"
+              className="flex items-center gap-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 px-3 py-2 rounded-2xl text-xs font-bold transition-all btn-press shadow-md"
+            >
+              <Volume2 className="w-4 h-4 text-amber-400 animate-pulse" />
+              <span>ხმის ტესტი 🔔</span>
+            </button>
+            <button
+              onClick={onOpenShareModal}
+              className="flex items-center gap-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 px-3.5 py-2 rounded-2xl text-xs font-semibold transition-all btn-press shadow-md"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>მოწვევა</span>
+            </button>
+          </div>
         </div>
 
         {/* Players progress bar */}

@@ -81,16 +81,26 @@ export const HomeView: React.FC = () => {
   return (
     <div className="w-full max-w-md mx-auto px-4 py-8 flex flex-col justify-center min-h-[85vh] animate-fade-in">
       {/* Title & Brand */}
-      <div className="text-center mb-8">
+      <div className="text-center mb-6">
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-rose-950/60 border border-rose-600/40 mb-3 shadow-2xl shadow-rose-950/80">
           <Skull className="w-8 h-8 text-rose-500" />
         </div>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-white font-serif-title tracking-tight mb-1">
           მაფია
         </h1>
-        <p className="text-xs uppercase tracking-widest text-rose-400 font-semibold">
+        <p className="text-xs uppercase tracking-widest text-rose-400 font-semibold mb-3">
           ჭკვიანი სამაგიდო მოდერატორი
         </p>
+
+        {/* Sound Test Quick Button */}
+        <button
+          type="button"
+          onClick={() => audioManager.testSound()}
+          className="inline-flex items-center gap-1.5 bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 border border-amber-600/50 px-3 py-1.5 rounded-full text-xs font-bold transition-all btn-press shadow-sm"
+        >
+          <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+          <span>ხმის ტესტი 🔔 (დააჭირეთ შესამოწმებლად)</span>
+        </button>
       </div>
 
       {/* Tabs */}
