@@ -18,7 +18,9 @@ const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST']
-  }
+  },
+  pingTimeout: 30000,
+  pingInterval: 10000
 });
 
 // In-memory rooms repository
@@ -39,7 +41,7 @@ function generateRoomCode() {
 /**
  * Default Game State Factory
  */
-function createInitialGameState(roomCode, hostId, hostName, config) {
+function createInitialGameState(roomCode, hostId, socketId, hostName, config) {
   return {
     roomCode,
     phase: 'lobby',
@@ -60,6 +62,7 @@ function createInitialGameState(roomCode, hostId, hostName, config) {
     players: [
       {
         id: hostId,
+        socketId: socketId,
         name: hostName || 'ჰოსტი',
         role: 'citizen',
         isAlive: true,
@@ -103,9 +106,6 @@ function createInitialGameState(roomCode, hostId, hostName, config) {
 
 /**
  * Check Win Conditions
- * - Town wins: All Mafia (and Don) and Serial Killer dead
- * - Mafia wins: Mafia count >= Alive Citizens AND Serial Killer is dead
- * - Serial Killer wins: 1v1 with any player (or last alive)
  */
 function checkWinCondition(game) {
   const alivePlayers = game.players.filter(p => p.isAlive);
@@ -196,14 +196,13 @@ function distributeRoles(game) {
 }
 
 /**
- * Filter Game State for a specific player (keep secret info safe)
+ * Filter Game State for a specific player
  */
 function getSanitizedGameState(game, playerId) {
   const player = game.players.find(p => p.id === playerId);
   const isHost = player?.isHost || false;
   const role = player?.role || 'citizen';
 
-  // Find mafia teammates
   const isMafiaGroup = role === 'mafia' || role === 'don';
   const mafiaTeam = isMafiaGroup
     ? game.players.filter(p => p.role === 'mafia' || p.role === 'don').map(p => ({
@@ -220,7 +219,6 @@ function getSanitizedGameState(game, playerId) {
       ...player,
       mafiaTeam: isMafiaGroup ? mafiaTeam : undefined
     } : null,
-    // Hide private roles of alive players unless game is over
     players: game.players.map(p => {
       const showRole = game.phase === 'game_over' || p.id === playerId || (!p.isAlive && game.phase !== 'lobby');
       return {
@@ -234,7 +232,6 @@ function getSanitizedGameState(game, playerId) {
         healedCount: p.healedRounds.length
       };
     }),
-    // Hide secret targets from others
     nightActions: {
       mafiaTarget: isMafiaGroup ? game.nightActions.mafiaTarget : null,
       donCheckTarget: role === 'don' ? game.nightActions.donCheckTarget : null,
@@ -248,9 +245,13 @@ function getSanitizedGameState(game, playerId) {
   };
 }
 
+/**
+ * Broadcast Game State to all players in room
+ */
 function broadcastGameState(game) {
   game.players.forEach(p => {
-    io.to(p.id).emit('gameStateUpdate', getSanitizedGameState(game, p.id));
+    const targetSocket = p.socketId || p.id;
+    io.to(targetSocket).emit('gameStateUpdate', getSanitizedGameState(game, p.id));
   });
 }
 
@@ -258,24 +259,40 @@ function broadcastGameState(game) {
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
 
+  // Helper to find and update player socket
+  const updatePlayerSocket = (roomCode, playerId) => {
+    const game = rooms.get(roomCode);
+    if (!game) return null;
+    const p = game.players.find(pl => pl.id === playerId || pl.socketId === socket.id);
+    if (p) {
+      p.socketId = socket.id;
+    }
+    return game;
+  };
+
   // 1. Create Room
-  socket.on('createRoom', ({ hostName, config }) => {
+  socket.on('createRoom', ({ hostName, hostId, config }) => {
     let roomCode = generateRoomCode();
     while (rooms.has(roomCode)) {
       roomCode = generateRoomCode();
     }
 
-    const game = createInitialGameState(roomCode, socket.id, hostName, config);
+    const effectiveHostId = hostId || `p_${socket.id}`;
+    const game = createInitialGameState(roomCode, effectiveHostId, socket.id, hostName, config);
     rooms.set(roomCode, game);
     socket.join(roomCode);
 
-    socket.emit('roomCreated', { roomCode, gameState: getSanitizedGameState(game, socket.id) });
+    socket.emit('roomCreated', { 
+      roomCode, 
+      playerId: effectiveHostId,
+      gameState: getSanitizedGameState(game, effectiveHostId) 
+    });
     broadcastGameState(game);
-    console.log(`Room created: ${roomCode} by ${hostName}`);
+    console.log(`Room created: ${roomCode} by ${hostName} (${socket.id})`);
   });
 
   // 2. Join Room
-  socket.on('joinRoom', ({ roomCode, playerName }) => {
+  socket.on('joinRoom', ({ roomCode, playerName, playerId }) => {
     const code = roomCode?.toUpperCase().trim();
     const game = rooms.get(code);
 
@@ -283,15 +300,21 @@ io.on('connection', (socket) => {
       return socket.emit('errorMsg', 'ოთახი ამ კოდით ვერ მოიძებნა!');
     }
 
+    const effectivePlayerId = playerId || `p_${socket.id}`;
+
+    // Check if player already exists in room (reconnection or existing)
+    const existing = game.players.find(p => p.id === effectivePlayerId || p.name.toLowerCase() === playerName?.toLowerCase());
+    if (existing) {
+      existing.socketId = socket.id;
+      existing.id = effectivePlayerId;
+      socket.join(code);
+      socket.emit('joinedRoomSuccess', { roomCode: code, playerId: existing.id });
+      broadcastGameState(game);
+      console.log(`Player ${existing.name} reconnected to room ${code}`);
+      return;
+    }
+
     if (game.phase !== 'lobby') {
-      // Check if reconnecting
-      const existing = game.players.find(p => p.name.toLowerCase() === playerName.toLowerCase());
-      if (existing) {
-        existing.id = socket.id;
-        socket.join(code);
-        broadcastGameState(game);
-        return socket.emit('joinedRoomSuccess', { roomCode: code });
-      }
       return socket.emit('errorMsg', 'თამაში უკვე დაწყებულია!');
     }
 
@@ -300,37 +323,57 @@ io.on('connection', (socket) => {
     }
 
     // Add new player
-    game.players.push({
-      id: socket.id,
+    const newPlayer = {
+      id: effectivePlayerId,
+      socketId: socket.id,
       name: playerName || `მოთამაშე ${game.players.length + 1}`,
       role: 'citizen',
       isAlive: true,
       isHost: false,
       isReady: true,
       healedRounds: []
-    });
+    };
 
+    game.players.push(newPlayer);
     socket.join(code);
-    socket.emit('joinedRoomSuccess', { roomCode: code });
+    socket.emit('joinedRoomSuccess', { roomCode: code, playerId: effectivePlayerId });
     broadcastGameState(game);
+    console.log(`Player ${newPlayer.name} joined room ${code}. Total players: ${game.players.length}`);
   });
 
-  // 3. Update Room Config (Host only)
-  socket.on('updateConfig', ({ roomCode, config }) => {
-    const game = rooms.get(roomCode);
+  // 3. Reconnect Session
+  socket.on('reconnectSession', ({ roomCode, playerId, playerName }) => {
+    const code = roomCode?.toUpperCase().trim();
+    const game = rooms.get(code);
+    if (!game) return;
+
+    const player = game.players.find(p => p.id === playerId || p.name.toLowerCase() === playerName?.toLowerCase());
+    if (player) {
+      player.socketId = socket.id;
+      if (playerId) player.id = playerId;
+      socket.join(code);
+      socket.emit('gameStateUpdate', getSanitizedGameState(game, player.id));
+      broadcastGameState(game);
+      console.log(`Session restored for ${player.name} in room ${code}`);
+    }
+  });
+
+  // 4. Update Room Config (Host only)
+  socket.on('updateConfig', ({ roomCode, config, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game || game.phase !== 'lobby') return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     game.config = { ...game.config, ...config };
     broadcastGameState(game);
   });
 
-  // 4. Start Game (Distribute roles and enter role_reveal)
-  socket.on('startGame', ({ roomCode }) => {
-    const game = rooms.get(roomCode);
+  // 5. Start Game (Distribute roles)
+  socket.on('startGame', ({ roomCode, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game || game.phase !== 'lobby') return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     distributeRoles(game);
@@ -340,11 +383,11 @@ io.on('connection', (socket) => {
     broadcastGameState(game);
   });
 
-  // 5. Start Night 1 (Introduction Night)
-  socket.on('startNight1', ({ roomCode }) => {
-    const game = rooms.get(roomCode);
+  // 6. Start Night 1
+  socket.on('startNight1', ({ roomCode, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     game.phase = 'night_1_intro';
@@ -353,7 +396,6 @@ io.on('connection', (socket) => {
     game.nightStepTimeLeft = game.config.nightDurationSeconds;
     game.isNightStepTimerRunning = true;
 
-    // Reset night actions
     game.nightActions = {
       mafiaTarget: null,
       donCheckTarget: null,
@@ -367,24 +409,22 @@ io.on('connection', (socket) => {
 
     broadcastGameState(game);
 
-    // Send Audio triggers to Host
-    io.to(player.id).emit('playAudioSequence', {
+    io.to(player.socketId || player.id).emit('playAudioSequence', {
       type: 'night_1_intro',
       nightDuration: game.config.nightDurationSeconds
     });
   });
 
-  // 6. Start Day 1 (Discussion Circle Opener)
-  socket.on('startDay1', ({ roomCode }) => {
-    const game = rooms.get(roomCode);
+  // 7. Start Day 1
+  socket.on('startDay1', ({ roomCode, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     game.phase = 'day_1_intro';
     game.roundNumber = 1;
 
-    // Pick random alive player to open circle
     const alivePlayers = game.players.filter(p => p.isAlive);
     const randomOpener = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
     game.firstSpeakerId = randomOpener ? randomOpener.id : game.players[0].id;
@@ -394,14 +434,14 @@ io.on('connection', (socket) => {
 
     broadcastGameState(game);
 
-    io.to(player.id).emit('playAudioCue', { cue: 'wake_city' });
+    io.to(player.socketId || player.id).emit('playAudioCue', { cue: 'wake_city' });
   });
 
-  // 7. Day Speaker Timer Control (Start, Pause, Next, Reset)
-  socket.on('controlSpeakerTimer', ({ roomCode, action }) => {
-    const game = rooms.get(roomCode);
+  // 8. Day Speaker Timer Controls
+  socket.on('controlSpeakerTimer', ({ roomCode, action, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     if (action === 'start') {
@@ -409,20 +449,16 @@ io.on('connection', (socket) => {
     } else if (action === 'pause') {
       game.isSpeakerTimerRunning = false;
     } else if (action === 'next') {
-      // Find next alive player in list order
       const alivePlayers = game.players.filter(p => p.isAlive);
       const currentIndex = alivePlayers.findIndex(p => p.id === game.currentSpeakerId);
       const nextIndex = (currentIndex + 1) % alivePlayers.length;
       game.currentSpeakerId = alivePlayers[nextIndex]?.id || null;
       game.speakerTimeLeft = game.config.daySpeechSeconds;
       game.isSpeakerTimerRunning = false;
-    } else if (action === 'setSpeaker') {
-      // Direct selection of speaker
     }
     broadcastGameState(game);
   });
 
-  // Timer Tick from Host
   socket.on('speakerTimerTick', ({ roomCode, timeLeft }) => {
     const game = rooms.get(roomCode);
     if (!game) return;
@@ -431,17 +467,17 @@ io.on('connection', (socket) => {
       game.isSpeakerTimerRunning = false;
       const host = game.players.find(p => p.isHost);
       if (host) {
-        io.to(host.id).emit('playAudioCue', { cue: 'time_up_gong' });
+        io.to(host.socketId || host.id).emit('playAudioCue', { cue: 'time_up_gong' });
       }
     }
     broadcastGameState(game);
   });
 
-  // 8. Start Night 2+ (Action Night)
-  socket.on('startNightAction', ({ roomCode }) => {
-    const game = rooms.get(roomCode);
+  // 9. Start Night Action (Night 2+)
+  socket.on('startNightAction', ({ roomCode, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     game.phase = 'night_action';
@@ -455,7 +491,6 @@ io.on('connection', (socket) => {
     game.nightStepTimeLeft = game.config.nightDurationSeconds;
     game.isNightStepTimerRunning = true;
 
-    // Reset targets for new night
     game.nightActions.mafiaTarget = null;
     game.nightActions.donCheckTarget = null;
     game.nightActions.donCheckResult = null;
@@ -466,7 +501,7 @@ io.on('connection', (socket) => {
 
     broadcastGameState(game);
 
-    io.to(player.id).emit('playAudioSequence', {
+    io.to(player.socketId || player.id).emit('playAudioSequence', {
       type: 'night_action_flow',
       hasDon: game.config.hasDon,
       hasDetective: game.config.hasDetective,
@@ -476,11 +511,10 @@ io.on('connection', (socket) => {
     });
   });
 
-  // 9. Host Advances Night Step
-  socket.on('setNightStep', ({ roomCode, step }) => {
-    const game = rooms.get(roomCode);
+  socket.on('setNightStep', ({ roomCode, step, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     game.currentNightStep = step;
@@ -488,66 +522,58 @@ io.on('connection', (socket) => {
     broadcastGameState(game);
   });
 
-  // 10. Player Night Actions
-  // Mafia Target Selection
-  socket.on('submitMafiaTarget', ({ roomCode, targetId }) => {
-    const game = rooms.get(roomCode);
+  // 10. Night Action Submissions
+  socket.on('submitMafiaTarget', ({ roomCode, targetId, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game || game.phase !== 'night_action') return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player || (player.role !== 'mafia' && player.role !== 'don') || !player.isAlive) return;
 
     game.nightActions.mafiaTarget = targetId;
     broadcastGameState(game);
   });
 
-  // Don Check
-  socket.on('submitDonCheck', ({ roomCode, targetId }) => {
-    const game = rooms.get(roomCode);
+  socket.on('submitDonCheck', ({ roomCode, targetId, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game || game.phase !== 'night_action') return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player || player.role !== 'don' || !player.isAlive) return;
 
     const target = game.players.find(p => p.id === targetId);
-    const isDetective = target?.role === 'detective';
     game.nightActions.donCheckTarget = targetId;
-    game.nightActions.donCheckResult = isDetective;
+    game.nightActions.donCheckResult = target?.role === 'detective';
     broadcastGameState(game);
   });
 
-  // Detective Check
-  socket.on('submitDetectiveCheck', ({ roomCode, targetId }) => {
-    const game = rooms.get(roomCode);
+  socket.on('submitDetectiveCheck', ({ roomCode, targetId, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game || game.phase !== 'night_action') return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player || player.role !== 'detective' || !player.isAlive) return;
 
     const target = game.players.find(p => p.id === targetId);
-    const isMafia = target?.role === 'mafia' || target?.role === 'don';
     game.nightActions.detectiveCheckTarget = targetId;
-    game.nightActions.detectiveCheckResult = isMafia;
+    game.nightActions.detectiveCheckResult = target?.role === 'mafia' || target?.role === 'don';
     broadcastGameState(game);
   });
 
-  // Doctor Heal (Check 1-time rule)
-  socket.on('submitDoctorHeal', ({ roomCode, targetId }) => {
-    const game = rooms.get(roomCode);
+  socket.on('submitDoctorHeal', ({ roomCode, targetId, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game || game.phase !== 'night_action') return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player || player.role !== 'doctor' || !player.isAlive) return;
 
     const target = game.players.find(p => p.id === targetId);
-    // 1-time heal per player throughout the game
     if (target && target.healedRounds.length === 0) {
       game.nightActions.doctorTarget = targetId;
     }
     broadcastGameState(game);
   });
 
-  // Serial Killer Action (victim or skip)
-  socket.on('submitSerialAction', ({ roomCode, targetId }) => {
-    const game = rooms.get(roomCode);
+  socket.on('submitSerialAction', ({ roomCode, targetId, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game || (game.phase !== 'night_action' && game.phase !== 'night_1_intro')) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player || player.role !== 'serial_killer' || !player.isAlive) return;
 
     if (targetId === 'skip') {
@@ -558,11 +584,11 @@ io.on('connection', (socket) => {
     broadcastGameState(game);
   });
 
-  // 11. End Night and Resolve Deaths -> Transition to Day
-  socket.on('resolveNight', ({ roomCode }) => {
-    const game = rooms.get(roomCode);
+  // 11. Resolve Night
+  socket.on('resolveNight', ({ roomCode, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     const deadThisNight = new Set();
@@ -570,7 +596,6 @@ io.on('connection', (socket) => {
     const doctorTarget = game.nightActions.doctorTarget;
     const serialTarget = game.nightActions.serialKillerTarget;
 
-    // Doctor heal effect
     if (doctorTarget) {
       const healedPlayer = game.players.find(p => p.id === doctorTarget);
       if (healedPlayer && healedPlayer.healedRounds.length === 0) {
@@ -578,7 +603,6 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Mafia kill resolution
     if (mafiaTarget && mafiaTarget !== doctorTarget) {
       deadThisNight.add(mafiaTarget);
       const p = game.players.find(pl => pl.id === mafiaTarget);
@@ -588,7 +612,6 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Serial Killer kill resolution
     if (serialTarget && serialTarget !== 'skip' && serialTarget !== doctorTarget) {
       deadThisNight.add(serialTarget);
       game.nightActions.serialKillsUsed += 1;
@@ -599,18 +622,14 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Mark players as eliminated
     deadThisNight.forEach(deadId => {
       const deadP = game.players.find(p => p.id === deadId);
-      if (deadP) {
-        deadP.isAlive = false;
-      }
+      if (deadP) deadP.isAlive = false;
     });
 
     game.lastNightDeaths = Array.from(deadThisNight);
     game.phase = 'day_discussion';
 
-    // Next circle speaker setup (advance to next alive player from last first speaker)
     const alivePlayers = game.players.filter(p => p.isAlive);
     if (game.firstSpeakerId) {
       const allPlayers = game.players;
@@ -631,7 +650,6 @@ io.on('connection', (socket) => {
     game.speakerTimeLeft = game.config.daySpeechSeconds;
     game.isSpeakerTimerRunning = false;
 
-    // Reset day voting nominations
     game.voting = {
       nominatedPlayers: [],
       currentDefenseIndex: 0,
@@ -643,7 +661,6 @@ io.on('connection', (socket) => {
       isBothEliminateQuestion: false
     };
 
-    // Check Win condition
     const winResult = checkWinCondition(game);
     if (winResult) {
       game.phase = 'game_over';
@@ -653,17 +670,17 @@ io.on('connection', (socket) => {
 
     broadcastGameState(game);
 
-    io.to(player.id).emit('playAudioCue', { 
+    io.to(player.socketId || player.id).emit('playAudioCue', { 
       cue: 'wake_city', 
       deathsCount: game.lastNightDeaths.length 
     });
   });
 
-  // 12. Day Nominations & Voting Phase Management (Host controls)
-  socket.on('toggleNomination', ({ roomCode, candidateId }) => {
-    const game = rooms.get(roomCode);
+  // 12. Day Nominations & Voting
+  socket.on('toggleNomination', ({ roomCode, candidateId, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     const list = game.voting.nominatedPlayers;
@@ -676,10 +693,10 @@ io.on('connection', (socket) => {
     broadcastGameState(game);
   });
 
-  socket.on('startDefensePhase', ({ roomCode }) => {
-    const game = rooms.get(roomCode);
+  socket.on('startDefensePhase', ({ roomCode, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     if (game.voting.nominatedPlayers.length === 0) return;
@@ -692,10 +709,10 @@ io.on('connection', (socket) => {
     broadcastGameState(game);
   });
 
-  socket.on('nextDefenseSpeaker', ({ roomCode }) => {
-    const game = rooms.get(roomCode);
+  socket.on('nextDefenseSpeaker', ({ roomCode, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     const candidates = game.voting.isTieResolution ? game.voting.tiedCandidates : game.voting.nominatedPlayers;
@@ -703,28 +720,26 @@ io.on('connection', (socket) => {
       game.voting.currentDefenseIndex += 1;
       game.voting.defenseTimeLeft = game.config.defenseSpeechSeconds;
     } else {
-      // Move to Voting
       game.phase = 'day_voting';
       game.voting.isDefenseActive = false;
     }
     broadcastGameState(game);
   });
 
-  socket.on('submitVotesTally', ({ roomCode, votes }) => {
-    const game = rooms.get(roomCode);
+  socket.on('submitVotesTally', ({ roomCode, votes, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     game.voting.votes = votes;
     broadcastGameState(game);
   });
 
-  // Resolve Voting & Ties
-  socket.on('resolveVoteOutcome', ({ roomCode, action, candidateId, tiedCandidates }) => {
-    const game = rooms.get(roomCode);
+  socket.on('resolveVoteOutcome', ({ roomCode, action, candidateId, tiedCandidates, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     if (action === 'eliminate_single' && candidateId) {
@@ -743,8 +758,6 @@ io.on('connection', (socket) => {
           target.eliminatedRound = game.roundNumber;
         }
       });
-    } else if (action === 'keep_both') {
-      // Both stay, proceed to night
     } else if (action === 'start_tie_defense' && tiedCandidates?.length) {
       game.voting.isTieResolution = true;
       game.voting.tiedCandidates = tiedCandidates;
@@ -759,25 +772,23 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Check Win Condition
     const win = checkWinCondition(game);
     if (win) {
       game.phase = 'game_over';
       game.winner = win.winner;
       game.winnerReason = win.reason;
     } else {
-      // Ready for next night
       game.phase = 'day_discussion';
     }
 
     broadcastGameState(game);
   });
 
-  // 13. Restart Game (Lobby)
-  socket.on('restartGame', ({ roomCode }) => {
-    const game = rooms.get(roomCode);
+  // 13. Restart Game
+  socket.on('restartGame', ({ roomCode, playerId }) => {
+    const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
-    const player = game.players.find(p => p.id === socket.id);
+    const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
     game.phase = 'lobby';
@@ -803,7 +814,7 @@ io.on('connection', (socket) => {
 });
 
 // Serve frontend build in production
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' || true) {
   app.use(express.static(path.join(__dirname, 'dist')));
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
