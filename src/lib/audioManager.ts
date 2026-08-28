@@ -1,6 +1,6 @@
 /**
- * 100% Guaranteed iOS & Android Web Audio Engine
- * Overcomes all iOS Safari / WebKit Autoplay & Background Audio Restrictions
+ * 100% Guaranteed Web Audio Engine for Mafia Moderator
+ * Includes all audio functions: chimes, speech, ambient music, and sound tests.
  */
 
 class AudioManager {
@@ -10,11 +10,12 @@ class AudioManager {
   private musicGain: GainNode | null = null;
   private isUnlocked = false;
   private isMuted = false;
+  private isMusicPlaying = false;
+  private musicOscillators: any[] = [];
   private onSubtitleCallback: ((text: string) => void) | null = null;
   private keepAliveSource: AudioBufferSourceNode | null = null;
 
   constructor() {
-    // Setup global one-tap unlock for iOS
     if (typeof window !== 'undefined') {
       const unlockEvents = ['touchstart', 'touchend', 'click', 'pointerdown', 'keydown'];
       const unlock = () => {
@@ -26,9 +27,6 @@ class AudioManager {
     }
   }
 
-  /**
-   * Unlock Web Audio context and start silent keep-alive loop for iOS
-   */
   public unlockAudio(): boolean {
     try {
       if (!this.ctx) {
@@ -45,7 +43,7 @@ class AudioManager {
         this.sfxGain.connect(this.masterGain);
 
         this.musicGain = this.ctx.createGain();
-        this.musicGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+        this.musicGain.gain.setValueAtTime(0.3, this.ctx.currentTime);
         this.musicGain.connect(this.masterGain);
       }
 
@@ -53,20 +51,21 @@ class AudioManager {
         this.ctx.resume();
       }
 
-      // iOS Silent Keep-Alive Loop (Prevents iOS from pausing audio session)
       if (!this.keepAliveSource && this.ctx) {
-        const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 2, this.ctx.sampleRate);
-        this.keepAliveSource = this.ctx.createBufferSource();
-        this.keepAliveSource.buffer = buffer;
-        this.keepAliveSource.loop = true;
-        this.keepAliveSource.connect(this.ctx.destination);
-        this.keepAliveSource.start(0);
+        try {
+          const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 2, this.ctx.sampleRate);
+          this.keepAliveSource = this.ctx.createBufferSource();
+          this.keepAliveSource.buffer = buffer;
+          this.keepAliveSource.loop = true;
+          this.keepAliveSource.connect(this.ctx.destination);
+          this.keepAliveSource.start(0);
+        } catch (e) {}
       }
 
       this.isUnlocked = true;
       return true;
     } catch (e) {
-      console.warn('Audio unlock exception:', e);
+      console.warn('Audio unlock error:', e);
       return false;
     }
   }
@@ -88,9 +87,6 @@ class AudioManager {
     return this.isMuted;
   }
 
-  /**
-   * Haptic vibration for mobile phones (eyes closed buzz)
-   */
   public vibrate(pattern: number[] = [150, 100, 150]) {
     try {
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
@@ -99,137 +95,175 @@ class AudioManager {
     } catch (e) {}
   }
 
-  /**
-   * Play a clean loud multi-tone chime chord
-   */
-  private playChord(freqs: number[], type: OscillatorType = 'triangle', duration: number = 2.5, attack: number = 0.02) {
-    this.unlockAudio();
-    if (!this.ctx || !this.sfxGain || this.isMuted) return;
+  public startAmbientMusic() {
+    try {
+      this.unlockAudio();
+      if (!this.ctx || !this.musicGain || this.isMusicPlaying || this.isMuted) return;
 
-    const now = this.ctx.currentTime;
+      this.stopAmbientMusic();
+      this.isMusicPlaying = true;
 
-    freqs.forEach((freq, idx) => {
-      if (!this.ctx || !this.sfxGain) return;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
+      const now = this.ctx.currentTime;
+      const baseFreqs = [55, 110, 164.81, 220]; // A Minor chord
 
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+      baseFreqs.forEach((freq, i) => {
+        if (!this.ctx || !this.musicGain) return;
+        const osc = this.ctx.createOscillator();
+        const filter = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
 
-      // Volume envelope
-      gain.gain.setValueAtTime(0.0001, now + idx * 0.08);
-      gain.gain.linearRampToValueAtTime(0.6 / freqs.length + 0.2, now + idx * 0.08 + attack);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.08 + duration);
+        osc.type = i % 2 === 0 ? 'sine' : 'triangle';
+        osc.frequency.setValueAtTime(freq, now);
 
-      osc.connect(gain);
-      gain.connect(this.sfxGain);
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(300 + i * 40, now);
 
-      osc.start(now + idx * 0.08);
-      osc.stop(now + idx * 0.08 + duration + 0.1);
-    });
+        gain.gain.setValueAtTime(0.05 / (i + 1), now);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.musicGain);
+
+        osc.start();
+        this.musicOscillators.push(osc, gain, filter);
+      });
+    } catch (e) {}
   }
 
-  /**
-   * LOUD Interactive Sound Test (Plays when user clicks the sound button)
-   */
+  public stopAmbientMusic() {
+    try {
+      this.musicOscillators.forEach(node => {
+        try {
+          if ('stop' in node) node.stop();
+          node.disconnect();
+        } catch (e) {}
+      });
+      this.musicOscillators = [];
+      this.isMusicPlaying = false;
+    } catch (e) {}
+  }
+
+  public playChord(freqs: number[], type: OscillatorType = 'triangle', duration: number = 2.5, attack: number = 0.02) {
+    try {
+      this.unlockAudio();
+      if (!this.ctx || !this.sfxGain || this.isMuted) return;
+
+      const now = this.ctx.currentTime;
+
+      freqs.forEach((freq, idx) => {
+        if (!this.ctx || !this.sfxGain) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+
+        gain.gain.setValueAtTime(0.0001, now + idx * 0.08);
+        gain.gain.linearRampToValueAtTime(0.6 / freqs.length + 0.2, now + idx * 0.08 + attack);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.08 + duration);
+
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+
+        osc.start(now + idx * 0.08);
+        osc.stop(now + idx * 0.08 + duration + 0.1);
+      });
+    } catch (e) {}
+  }
+
   public testSound(): boolean {
     this.unlockAudio();
     this.vibrate([200, 100, 200]);
-    // Play loud 3-tone bell
     this.playChord([523.25, 659.25, 783.99, 1046.50], 'triangle', 3.0);
     return true;
   }
 
-  /**
-   * Universal Announcer (Acoustic Bell Chimes + Vibrations + Screen Toast)
-   */
-  public announcePrompt(text: string) {
-    this.unlockAudio();
-
-    if (this.onSubtitleCallback) {
-      this.onSubtitleCallback(text);
-    }
-
-    const lower = text.toLowerCase();
-
-    // 1. Unmissable Acoustic Chimes for every role
-    if (lower.includes('იძინებს ქალაქი')) {
-      // Deep sleep bells (A3, G3, E3, C3)
-      this.playChord([220, 196, 164.81, 130.81], 'sine', 3.0);
-      this.vibrate([250]);
-    } 
-    else if (lower.includes('იღვიძებს მაფია')) {
-      // Dramatic sharp suspense chord (E3, G#3, B3, E4)
-      this.playChord([164.81, 207.65, 246.94, 329.63], 'sawtooth', 3.2);
-      this.vibrate([150, 100, 150]);
-    } 
-    else if (lower.includes('იღვიძებს დონი')) {
-      // Royal brass chime (D4, F#4, A4, D5)
-      this.playChord([293.66, 369.99, 440.00, 587.33], 'triangle', 2.8);
-      this.vibrate([100, 60, 100, 60, 100]);
-    } 
-    else if (lower.includes('იღვიძებს დეტექტივი')) {
-      // High investigative radar bells (E4, B4, E5, B5)
-      this.playChord([329.63, 493.88, 659.25, 987.77], 'sine', 2.5);
-      this.vibrate([100, 100, 250]);
-    } 
-    else if (lower.includes('იღვიძებს ექიმი')) {
-      // Warm healing pulse (C4, E4, G4, C5)
-      this.playChord([261.63, 329.63, 392.00, 523.25], 'triangle', 3.0);
-      this.vibrate([80, 80, 80, 80]);
-    } 
-    else if (lower.includes('იღვიძებს სერიული')) {
-      // Low sinister pulse (C#3, F#3, C#4)
-      this.playChord([138.59, 185.00, 277.18], 'sawtooth', 3.0);
-      this.vibrate([300, 120, 300]);
-    } 
-    else if (lower.includes('იღვიძებს ქალაქი')) {
-      // LOUD MORNING SUNRISE BELLS (C4, E4, G4, C5, E5, G5)
-      this.playChord([523.25, 659.25, 783.99, 1046.50, 1318.51], 'triangle', 4.0);
-      this.vibrate([400, 150, 400]);
-    } 
-    else if (lower.includes('იძინებს')) {
-      // Sleep tone
-      this.playChord([320, 220, 160], 'sine', 1.5);
-      this.vibrate([100]);
-    }
-
-    // 2. Multi-Engine Georgian Speech Synthesis fallback
-    if (!this.isMuted && 'speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        const voices = window.speechSynthesis.getVoices();
-        const kaVoice = voices.find(v => v.lang.includes('ka') || v.lang.includes('GE'));
-        if (kaVoice) utterance.voice = kaVoice;
-
-        utterance.lang = 'ka-GE';
-        utterance.rate = 0.88;
-        utterance.pitch = 0.95;
-        utterance.volume = 1.0;
-        window.speechSynthesis.speak(utterance);
-      } catch (e) {}
-    }
+  public playMorningChime() {
+    this.playChord([523.25, 659.25, 783.99, 1046.50, 1318.51], 'triangle', 4.0);
   }
 
-  /**
-   * Gong for 1-minute speech expiration
-   */
+  public playDonWakeChime() {
+    this.playChord([293.66, 369.99, 440.00, 587.33], 'triangle', 2.8);
+  }
+
+  public speak(text: string, onEnd?: () => void) {
+    this.announcePrompt(text);
+    if (onEnd) setTimeout(onEnd, 3000);
+  }
+
+  public announcePrompt(text: string) {
+    try {
+      this.unlockAudio();
+
+      if (this.onSubtitleCallback) {
+        this.onSubtitleCallback(text);
+      }
+
+      const lower = text.toLowerCase();
+
+      if (lower.includes('იძინებს ქალაქი')) {
+        this.playChord([220, 196, 164.81, 130.81], 'sine', 3.0);
+        this.vibrate([250]);
+      } 
+      else if (lower.includes('იღვიძებს მაფია')) {
+        this.playChord([164.81, 207.65, 246.94, 329.63], 'sawtooth', 3.2);
+        this.vibrate([150, 100, 150]);
+      } 
+      else if (lower.includes('იღვიძებს დონი')) {
+        this.playChord([293.66, 369.99, 440.00, 587.33], 'triangle', 2.8);
+        this.vibrate([100, 60, 100, 60, 100]);
+      } 
+      else if (lower.includes('იღვიძებს დეტექტივი')) {
+        this.playChord([329.63, 493.88, 659.25, 987.77], 'sine', 2.5);
+        this.vibrate([100, 100, 250]);
+      } 
+      else if (lower.includes('იღვიძებს ექიმი')) {
+        this.playChord([261.63, 329.63, 392.00, 523.25], 'triangle', 3.0);
+        this.vibrate([80, 80, 80, 80]);
+      } 
+      else if (lower.includes('იღვიძებს სერიული')) {
+        this.playChord([138.59, 185.00, 277.18], 'sawtooth', 3.0);
+        this.vibrate([300, 120, 300]);
+      } 
+      else if (lower.includes('იღვიძებს ქალაქი')) {
+        this.playChord([523.25, 659.25, 783.99, 1046.50, 1318.51], 'triangle', 4.0);
+        this.vibrate([400, 150, 400]);
+      } 
+      else if (lower.includes('იძინებს')) {
+        this.playChord([320, 220, 160], 'sine', 1.5);
+        this.vibrate([100]);
+      }
+
+      if (!this.isMuted && 'speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          const voices = window.speechSynthesis.getVoices();
+          const kaVoice = voices.find(v => v.lang.includes('ka') || v.lang.includes('GE'));
+          if (kaVoice) utterance.voice = kaVoice;
+
+          utterance.lang = 'ka-GE';
+          utterance.rate = 0.88;
+          utterance.pitch = 0.95;
+          utterance.volume = 1.0;
+          window.speechSynthesis.speak(utterance);
+        } catch (e) {}
+      }
+    } catch (e) {}
+  }
+
   public playGong() {
     this.unlockAudio();
     this.vibrate([300]);
     this.playChord([261.63, 329.63, 392.00, 523.25], 'triangle', 4.0);
   }
 
-  /**
-   * Gunshot for elimination
-   */
   public playGunshot() {
-    this.unlockAudio();
-    this.vibrate([500]);
-    if (!this.ctx || !this.sfxGain || this.isMuted) return;
-
     try {
+      this.unlockAudio();
+      this.vibrate([500]);
+      if (!this.ctx || !this.sfxGain || this.isMuted) return;
+
       const now = this.ctx.currentTime;
       const bufferSize = this.ctx.sampleRate * 0.4;
       const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -259,9 +293,6 @@ class AudioManager {
     } catch (e) {}
   }
 
-  /**
-   * Clock Tick
-   */
   public playTick() {
     this.unlockAudio();
     this.vibrate([40]);

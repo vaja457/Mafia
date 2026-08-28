@@ -49,21 +49,26 @@ export const HomeView: React.FC = () => {
 
     setIsSubmitting(true);
 
-    // Start background music and audio engine on user interaction
-    audioManager.startAmbientMusic();
+    try {
+      audioManager.startAmbientMusic();
+    } catch (err) {}
 
-    socketClient.createRoom(hostName.trim(), {
-      totalPlayers,
-      mafiaCount,
-      hasDon,
-      hasDetective,
-      hasDoctor,
-      hasSerialKiller,
-      serialCanKillNight1,
-      nightDurationSeconds: nightDuration
-    });
+    try {
+      socketClient.createRoom(hostName.trim(), {
+        totalPlayers,
+        mafiaCount,
+        hasDon,
+        hasDetective,
+        hasDoctor,
+        hasSerialKiller,
+        serialCanKillNight1,
+        nightDurationSeconds: nightDuration
+      });
+    } catch (err) {
+      console.error('Create room error:', err);
+    }
 
-    setTimeout(() => setIsSubmitting(false), 4000);
+    setTimeout(() => setIsSubmitting(false), 3000);
   };
 
   const handleJoinRoom = (e: React.FormEvent) => {
@@ -72,11 +77,17 @@ export const HomeView: React.FC = () => {
 
     setIsSubmitting(true);
 
-    audioManager.startAmbientMusic();
+    try {
+      audioManager.startAmbientMusic();
+    } catch (err) {}
 
-    socketClient.joinRoom(roomCode.trim().toUpperCase(), playerName.trim());
+    try {
+      socketClient.joinRoom(roomCode.trim().toUpperCase(), playerName.trim());
+    } catch (err) {
+      console.error('Join room error:', err);
+    }
 
-    setTimeout(() => setIsSubmitting(false), 4000);
+    setTimeout(() => setIsSubmitting(false), 3000);
   };
 
   return (
