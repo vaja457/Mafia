@@ -30,6 +30,7 @@ export const HomeView: React.FC = () => {
   // Player state
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Check URL param for ?room=CODE
   useEffect(() => {
@@ -43,7 +44,9 @@ export const HomeView: React.FC = () => {
 
   const handleCreateRoom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!hostName.trim()) return;
+    if (!hostName.trim() || isSubmitting) return;
+
+    setIsSubmitting(true);
 
     // Start background music and audio engine on user interaction
     audioManager.startAmbientMusic();
@@ -58,15 +61,21 @@ export const HomeView: React.FC = () => {
       serialCanKillNight1,
       nightDurationSeconds: nightDuration
     });
+
+    setTimeout(() => setIsSubmitting(false), 5000);
   };
 
   const handleJoinRoom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!playerName.trim() || !roomCode.trim()) return;
+    if (!playerName.trim() || !roomCode.trim() || isSubmitting) return;
+
+    setIsSubmitting(true);
 
     audioManager.startAmbientMusic();
 
     socketClient.joinRoom(roomCode.trim().toUpperCase(), playerName.trim());
+
+    setTimeout(() => setIsSubmitting(false), 5000);
   };
 
   return (

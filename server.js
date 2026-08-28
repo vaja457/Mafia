@@ -270,6 +270,7 @@ io.on('connection', (socket) => {
     socket.join(roomCode);
 
     socket.emit('roomCreated', { roomCode, gameState: getSanitizedGameState(game, socket.id) });
+    broadcastGameState(game);
     console.log(`Room created: ${roomCode} by ${hostName}`);
   });
 

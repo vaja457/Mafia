@@ -33,6 +33,12 @@ class SocketService {
         this.emitLocal('gameStateUpdate', gameState);
       });
 
+      this.socket.on('roomCreated', (data: any) => {
+        if (data?.gameState) {
+          this.emitLocal('gameStateUpdate', data.gameState);
+        }
+      });
+
       this.socket.on('errorMsg', (msg: string) => {
         this.emitLocal('errorMsg', msg);
       });
