@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GameState, RoomConfig } from '../types/game';
 import { socketClient } from '../lib/socketClient';
+import { audioManager } from '../lib/audioManager';
 import { 
   Users, 
   Crown, 
@@ -13,7 +14,10 @@ import {
   Skull, 
   Eye,
   Clock,
-  UserCheck
+  UserCheck,
+  Check,
+  Copy,
+  Volume2
 } from 'lucide-react';
 
 interface LobbyViewProps {
