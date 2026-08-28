@@ -113,6 +113,12 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleLeaveRoom = () => {
+    socketClient.leaveRoom(() => {
+      setGameState(null);
+    });
+  };
+
   return (
     <div className="min-h-screen bg-mafia-dark text-slate-100 flex flex-col justify-between selection:bg-rose-600 selection:text-white">
       {/* App Header */}
@@ -120,6 +126,7 @@ export const App: React.FC = () => {
         gameState={gameState}
         isConnected={isConnected}
         onOpenShareModal={() => setIsShareModalOpen(true)}
+        onLeaveRoom={handleLeaveRoom}
       />
 
       {/* Floating narration subtitle toast */}

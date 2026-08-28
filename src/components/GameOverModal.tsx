@@ -136,20 +136,29 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({ gameState }) => {
         </div>
       </div>
 
-      {/* Restart Game Button for Host */}
-      {isHost ? (
+      {/* Action Buttons for Host & Players */}
+      <div className="space-y-3">
+        {isHost ? (
+          <button
+            onClick={handleRestart}
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-rose-900/40 transition-all btn-press text-sm font-serif-title"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>ახალი თამაშის დაწყება (ოთახის გადატვირთვა)</span>
+          </button>
+        ) : (
+          <p className="text-center text-xs text-slate-400 animate-pulse mb-2">
+            დაელოდეთ ჰოსტს ახალი თამაშის დასაწყებად...
+          </p>
+        )}
+
         <button
-          onClick={handleRestart}
-          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-rose-900/40 transition-all btn-press text-sm font-serif-title"
+          onClick={() => socketClient.leaveRoom()}
+          className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-slate-300 font-semibold py-3.5 rounded-2xl border border-slate-800 transition-all btn-press text-xs"
         >
-          <RotateCcw className="w-4 h-4" />
-          <span>ახალი თამაშის დაწყება (ოთახის გადატვირთვა)</span>
+          🚪 მთავარ გვერდზე დაბრუნება (ოთახიდან გასვლა)
         </button>
-      ) : (
-        <p className="text-center text-xs text-slate-400 animate-pulse">
-          დაელოდეთ ჰოსტს ახალი თამაშის დასაწყებად...
-        </p>
-      )}
+      </div>
     </div>
   );
 };

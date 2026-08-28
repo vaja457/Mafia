@@ -807,6 +807,25 @@ io.on('connection', (socket) => {
     broadcastGameState(game);
   });
 
+  // 14. Leave Room
+  socket.on('leaveRoom', ({ roomCode, playerId }) => {
+    const code = roomCode?.toUpperCase().trim();
+    const game = rooms.get(code);
+    if (game) {
+      socket.leave(code);
+      game.players = game.players.filter(p => p.id !== playerId && p.socketId !== socket.id);
+      if (game.players.length === 0) {
+        rooms.delete(code);
+        console.log(`Room ${code} deleted (empty)`);
+      } else {
+        if (!game.players.some(p => p.isHost) && game.players.length > 0) {
+          game.players[0].isHost = true;
+        }
+        broadcastGameState(game);
+      }
+    }
+  });
+
   // Disconnect
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);

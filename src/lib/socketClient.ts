@@ -125,12 +125,28 @@ class SocketService {
   }
 
   // Clear session to leave room
-  public leaveRoom() {
+  public leaveRoom(onLeft?: () => void) {
     try {
+      const currentRoom = localStorage.getItem('mafia_roomCode');
+      if (currentRoom) {
+        this.socket?.emit('leaveRoom', { roomCode: currentRoom, playerId: this.playerId });
+      }
       localStorage.removeItem('mafia_roomCode');
       localStorage.removeItem('mafia_playerName');
     } catch (e) {}
-    window.location.href = window.location.origin;
+
+    // Clear URL params
+    try {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    } catch (e) {}
+
+    this.emitLocal('gameStateUpdate', null);
+
+    if (onLeft) {
+      onLeft();
+    }
   }
 
   // Game actions with persistent playerId

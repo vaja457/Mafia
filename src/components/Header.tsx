@@ -7,9 +7,10 @@ interface HeaderProps {
   gameState: GameState | null;
   isConnected: boolean;
   onOpenShareModal?: () => void;
+  onLeaveRoom?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ gameState, isConnected, onOpenShareModal }) => {
+export const Header: React.FC<HeaderProps> = ({ gameState, isConnected, onOpenShareModal, onLeaveRoom }) => {
   const [isMuted, setIsMuted] = useState(audioManager.getIsMuted());
   const [copied, setCopied] = useState(false);
 
@@ -45,16 +46,16 @@ export const Header: React.FC<HeaderProps> = ({ gameState, isConnected, onOpenSh
   const isNight = gameState?.phase.includes('night');
 
   const handleLogoClick = () => {
-    if (!gameState || gameState.phase === 'lobby') {
-      window.location.reload();
-    } else {
-      window.location.reload();
-    }
+    window.location.reload();
   };
 
   const handleLeaveRoom = () => {
     if (window.confirm('ნამდვილად გსურთ ოთახიდან გასვლა?')) {
-      socketClient.leaveRoom();
+      if (onLeaveRoom) {
+        onLeaveRoom();
+      } else {
+        socketClient.leaveRoom();
+      }
     }
   };
 
