@@ -34,6 +34,11 @@ export const NightPhaseView: React.FC<NightPhaseViewProps> = ({ gameState }) => 
   // Selected targets in local state for immediate feedback
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
 
+  // Reset selected target when night step or round changes
+  useEffect(() => {
+    setSelectedTarget(null);
+  }, [currentStep, gameState.roundNumber]);
+
   const alivePlayers = gameState.players.filter(p => p.isAlive);
 
   // Check if current user is active in this night step
@@ -270,7 +275,7 @@ export const NightPhaseView: React.FC<NightPhaseViewProps> = ({ gameState }) => 
           {/* Target Players Selection Grid */}
           <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
             {alivePlayers.map((player) => {
-              const isSelected = selectedTarget === player.id || 
+              const isSelected = (selectedTarget === player.id) ||
                 (currentStep === 'mafia_kill' && nightActions.mafiaTarget === player.id) ||
                 (currentStep === 'detective_check' && nightActions.detectiveCheckTarget === player.id) ||
                 (currentStep === 'don_check' && nightActions.donCheckTarget === player.id) ||
@@ -286,17 +291,17 @@ export const NightPhaseView: React.FC<NightPhaseViewProps> = ({ gameState }) => 
                   key={player.id}
                   disabled={isHealDisabled}
                   onClick={() => handleSelectTarget(player.id)}
-                  className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all btn-press ${
+                  className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-200 btn-press ${
                     isHealDisabled 
-                      ? 'bg-slate-950/40 border-slate-800 text-slate-600 cursor-not-allowed opacity-50'
+                      ? 'bg-slate-950/40 border-slate-800/80 text-slate-600 cursor-not-allowed opacity-50'
                       : isSelected
-                        ? 'bg-rose-600/30 border-rose-500 text-white shadow-lg shadow-rose-950/50'
-                        : 'bg-slate-900/80 border-slate-800 text-slate-200 hover:border-slate-700'
+                        ? 'bg-rose-950/70 border-rose-500 text-white shadow-lg shadow-rose-950/60 ring-1 ring-rose-500'
+                        : 'bg-slate-900/80 border-slate-800/80 text-slate-200 hover:border-slate-700'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                      isSelected ? 'bg-rose-600 text-white' : 'bg-slate-800 text-slate-400'
+                      isSelected ? 'bg-rose-600 text-white shadow-md' : 'bg-slate-800 text-slate-400'
                     }`}>
                       {player.name.charAt(0).toUpperCase()}
                     </div>
@@ -312,8 +317,8 @@ export const NightPhaseView: React.FC<NightPhaseViewProps> = ({ gameState }) => 
                   </div>
 
                   {isSelected && (
-                    <div className="flex items-center gap-1 text-xs text-rose-400 font-bold">
-                      <Check className="w-4 h-4" />
+                    <div className="flex items-center gap-1.5 text-xs text-rose-400 font-bold bg-rose-950/90 px-2.5 py-1 rounded-xl border border-rose-600/60 animate-scale-in">
+                      <Check className="w-3.5 h-3.5" />
                       <span>არჩეულია</span>
                     </div>
                   )}
