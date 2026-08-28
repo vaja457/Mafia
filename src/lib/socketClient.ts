@@ -84,6 +84,14 @@ class SocketService {
         }
       });
 
+      this.socket.on('sessionExpired', () => {
+        try {
+          localStorage.removeItem('mafia_roomCode');
+          localStorage.removeItem('mafia_playerName');
+        } catch (e) {}
+        this.emitLocal('gameStateUpdate', null);
+      });
+
       this.socket.on('errorMsg', (msg: string) => {
         this.emitLocal('errorMsg', msg);
       });

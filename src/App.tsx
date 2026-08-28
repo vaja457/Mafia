@@ -89,33 +89,38 @@ export const App: React.FC = () => {
   }, []);
 
   const renderCurrentPhase = () => {
-    if (!gameState) {
+    if (!gameState || !gameState.phase) {
       return <HomeView />;
     }
 
-    switch (gameState.phase) {
-      case 'lobby':
-        return (
-          <LobbyView
-            gameState={gameState}
-            onOpenShareModal={() => setIsShareModalOpen(true)}
-          />
-        );
-      case 'role_reveal':
-        return <RoleRevealCard gameState={gameState} />;
-      case 'night_1_intro':
-      case 'night_action':
-        return <NightPhaseView gameState={gameState} />;
-      case 'day_1_intro':
-      case 'day_discussion':
-        return <DayDiscussionView gameState={gameState} />;
-      case 'day_defense':
-      case 'day_voting':
-        return <VotingView gameState={gameState} />;
-      case 'game_over':
-        return <GameOverModal gameState={gameState} />;
-      default:
-        return <HomeView />;
+    try {
+      switch (gameState.phase) {
+        case 'lobby':
+          return (
+            <LobbyView
+              gameState={gameState}
+              onOpenShareModal={() => setIsShareModalOpen(true)}
+            />
+          );
+        case 'role_reveal':
+          return <RoleRevealCard gameState={gameState} />;
+        case 'night_1_intro':
+        case 'night_action':
+          return <NightPhaseView gameState={gameState} />;
+        case 'day_1_intro':
+        case 'day_discussion':
+          return <DayDiscussionView gameState={gameState} />;
+        case 'day_defense':
+        case 'day_voting':
+          return <VotingView gameState={gameState} />;
+        case 'game_over':
+          return <GameOverModal gameState={gameState} />;
+        default:
+          return <HomeView />;
+      }
+    } catch (e) {
+      console.error('Render error:', e);
+      return <HomeView />;
     }
   };
 

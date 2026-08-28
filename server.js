@@ -345,7 +345,10 @@ io.on('connection', (socket) => {
   socket.on('reconnectSession', ({ roomCode, playerId, playerName }) => {
     const code = roomCode?.toUpperCase().trim();
     const game = rooms.get(code);
-    if (!game) return;
+    if (!game) {
+      socket.emit('sessionExpired');
+      return;
+    }
 
     const player = game.players.find(p => p.id === playerId || p.name.toLowerCase() === playerName?.toLowerCase());
     if (player) {
@@ -355,6 +358,8 @@ io.on('connection', (socket) => {
       socket.emit('gameStateUpdate', getSanitizedGameState(game, player.id));
       broadcastGameState(game);
       console.log(`Session restored for ${player.name} in room ${code}`);
+    } else {
+      socket.emit('sessionExpired');
     }
   });
 
