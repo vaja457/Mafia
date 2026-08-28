@@ -88,6 +88,10 @@ class SocketService {
         this.emitLocal('errorMsg', msg);
       });
 
+      this.socket.on('playAudioPrompt', (data: any) => {
+        this.emitLocal('playAudioPrompt', data);
+      });
+
       this.socket.on('playAudioSequence', (data: any) => {
         this.emitLocal('playAudioSequence', data);
       });

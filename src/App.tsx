@@ -20,6 +20,40 @@ export const App: React.FC = () => {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Track phase & step transitions to guarantee audio triggers locally as well
+  const prevStepRef = React.useRef<string | null>(null);
+  const prevPhaseRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!gameState) return;
+
+    const currentKey = `${gameState.phase}_${gameState.currentNightStep}_${gameState.roundNumber}`;
+    if (prevStepRef.current !== currentKey) {
+      prevStepRef.current = currentKey;
+
+      if (gameState.phase === 'night_1_intro') {
+        audioManager.announcePrompt('იძინებს ქალაქი. იღვიძებს მაფია და ეცნობა ერთმანეთს.');
+      } else if (gameState.phase === 'night_action') {
+        if (gameState.currentNightStep === 'mafia_kill') {
+          audioManager.announcePrompt('იძინებს ქალაქი. იღვიძებს მაფია და ირჩევს მსხვერპლს.');
+        } else if (gameState.currentNightStep === 'don_check') {
+          audioManager.announcePrompt('იძინებს მაფია. იღვიძებს დონი და ეძებს დეტექტივს.');
+        } else if (gameState.currentNightStep === 'detective_check') {
+          audioManager.announcePrompt('იღვიძებს დეტექტივი და ამოწმებს მოთამაშეს.');
+        } else if (gameState.currentNightStep === 'doctor_heal') {
+          audioManager.announcePrompt('იღვიძებს ექიმი და ჰილავს მოთამაშეს.');
+        } else if (gameState.currentNightStep === 'serial_kill') {
+          audioManager.announcePrompt('იღვიძებს სერიული მკვლელი.');
+        }
+      } else if (gameState.phase === 'day_discussion' || gameState.phase === 'day_1_intro') {
+        if (prevPhaseRef.current?.includes('night')) {
+          audioManager.announcePrompt('იძინებს ყველა. იღვიძებს ქალაქი.');
+        }
+      }
+      prevPhaseRef.current = gameState.phase;
+    }
+  }, [gameState?.phase, gameState?.currentNightStep, gameState?.roundNumber]);
+
   useEffect(() => {
     socketClient.connect();
 
