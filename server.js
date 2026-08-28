@@ -383,7 +383,328 @@ io.on('connection', (socket) => {
     broadcastGameState(game);
   });
 
-  // 6. Start Night 1
+// Map to hold active timers for rooms
+const roomNightTimers = new Map();
+
+function clearRoomNightTimer(roomCode) {
+  const t = roomNightTimers.get(roomCode);
+  if (t) {
+    clearTimeout(t);
+    roomNightTimers.delete(roomCode);
+  }
+}
+
+/**
+ * Automated Night Step Sequencer
+ */
+function runAutomatedNightStep(game) {
+  clearRoomNightTimer(game.roomCode);
+  const cfg = game.config;
+  const current = game.currentNightStep;
+  const host = game.players.find(p => p.isHost);
+  const hostTarget = host ? (host.socketId || host.id) : null;
+
+  const aliveDon = game.players.some(p => p.role === 'don' && p.isAlive);
+  const aliveDetective = game.players.some(p => p.role === 'detective' && p.isAlive);
+  const aliveDoctor = game.players.some(p => p.role === 'doctor' && p.isAlive);
+  const aliveSerial = game.players.some(p => p.role === 'serial_killer' && p.isAlive);
+
+  // 1. First Night Flow (Intro only)
+  if (game.phase === 'night_1_intro') {
+    const dur = cfg.nightDurationSeconds || 25;
+    game.nightStepTimeLeft = dur;
+    broadcastGameState(game);
+
+    if (hostTarget) {
+      io.to(hostTarget).emit('playAudioPrompt', {
+        text: `იძინებს ქალაქი. იღვიძებს მაფია და ეცნობა ერთმანეთს, მაფიას აქვს ${dur} წამი მოსაფიქრებლად.`,
+        duration: dur
+      });
+    }
+
+    const timer = setTimeout(() => {
+      if (game.phase !== 'night_1_intro') return;
+      if (hostTarget) {
+        io.to(hostTarget).emit('playAudioPrompt', {
+          text: 'იძინებს მაფია. იღვიძებს ქალაქი.',
+          duration: 4
+        });
+      }
+
+      setTimeout(() => {
+        if (game.phase !== 'night_1_intro') return;
+        // Auto transition to Day 1
+        game.phase = 'day_1_intro';
+        const alivePlayers = game.players.filter(p => p.isAlive);
+        const randomOpener = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+        game.firstSpeakerId = randomOpener ? randomOpener.id : game.players[0].id;
+        game.currentSpeakerId = game.firstSpeakerId;
+        game.speakerTimeLeft = cfg.daySpeechSeconds || 60;
+        game.isSpeakerTimerRunning = false;
+        broadcastGameState(game);
+      }, 4000);
+    }, dur * 1000);
+
+    roomNightTimers.set(game.roomCode, timer);
+    return;
+  }
+
+  // 2. Action Night Flow (Night 2+)
+  if (game.phase === 'night_action') {
+    const stepDuration = 15; // 15 seconds per individual special role
+
+    if (current === 'mafia_kill') {
+      const dur = cfg.nightDurationSeconds || 25;
+      game.nightStepTimeLeft = dur;
+      broadcastGameState(game);
+
+      if (hostTarget) {
+        io.to(hostTarget).emit('playAudioPrompt', {
+          text: `იძინებს ქალაქი. იღვიძებს მაფია და ირჩევს მსხვერპლს, მაფიას აქვს ${dur} წამი მოსაფიქრებლად.`,
+          duration: dur
+        });
+      }
+
+      const timer = setTimeout(() => {
+        if (game.phase !== 'night_action') return;
+        advanceToNextNightRole(game);
+      }, dur * 1000);
+      roomNightTimers.set(game.roomCode, timer);
+    } 
+    else if (current === 'don_check') {
+      game.nightStepTimeLeft = stepDuration;
+      broadcastGameState(game);
+
+      if (hostTarget) {
+        io.to(hostTarget).emit('playAudioPrompt', {
+          text: `იძინებს მაფია. იღვიძებს დონი და ეძებს დეტექტივს, დონს აქვს ${stepDuration} წამი.`,
+          duration: stepDuration
+        });
+      }
+
+      const timer = setTimeout(() => {
+        if (game.phase !== 'night_action') return;
+        advanceToNextNightRole(game);
+      }, stepDuration * 1000);
+      roomNightTimers.set(game.roomCode, timer);
+    }
+    else if (current === 'detective_check') {
+      game.nightStepTimeLeft = stepDuration;
+      broadcastGameState(game);
+
+      if (hostTarget) {
+        io.to(hostTarget).emit('playAudioPrompt', {
+          text: `იღვიძებს დეტექტივი და ამოწმებს მოთამაშეს, დეტექტივს აქვს ${stepDuration} წამი.`,
+          duration: stepDuration
+        });
+      }
+
+      const timer = setTimeout(() => {
+        if (game.phase !== 'night_action') return;
+        advanceToNextNightRole(game);
+      }, stepDuration * 1000);
+      roomNightTimers.set(game.roomCode, timer);
+    }
+    else if (current === 'doctor_heal') {
+      game.nightStepTimeLeft = stepDuration;
+      broadcastGameState(game);
+
+      if (hostTarget) {
+        io.to(hostTarget).emit('playAudioPrompt', {
+          text: `იღვიძებს ექიმი და ჰილავს მოთამაშეს, ექიმს აქვს ${stepDuration} წამი.`,
+          duration: stepDuration
+        });
+      }
+
+      const timer = setTimeout(() => {
+        if (game.phase !== 'night_action') return;
+        advanceToNextNightRole(game);
+      }, stepDuration * 1000);
+      roomNightTimers.set(game.roomCode, timer);
+    }
+    else if (current === 'serial_kill') {
+      game.nightStepTimeLeft = stepDuration;
+      broadcastGameState(game);
+
+      if (hostTarget) {
+        io.to(hostTarget).emit('playAudioPrompt', {
+          text: `იღვიძებს სერიული მკვლელი, სერიულს აქვს ${stepDuration} წამი.`,
+          duration: stepDuration
+        });
+      }
+
+      const timer = setTimeout(() => {
+        if (game.phase !== 'night_action') return;
+        advanceToNextNightRole(game);
+      }, stepDuration * 1000);
+      roomNightTimers.set(game.roomCode, timer);
+    }
+  }
+}
+
+function advanceToNextNightRole(game) {
+  const cfg = game.config;
+  const current = game.currentNightStep;
+  const aliveDon = cfg.hasDon && game.players.some(p => p.role === 'don' && p.isAlive);
+  const aliveDetective = cfg.hasDetective && game.players.some(p => p.role === 'detective' && p.isAlive);
+  const aliveDoctor = cfg.hasDoctor && game.players.some(p => p.role === 'doctor' && p.isAlive);
+  const aliveSerial = cfg.hasSerialKiller && game.players.some(p => p.role === 'serial_killer' && p.isAlive);
+
+  if (current === 'mafia_kill') {
+    if (aliveDon) {
+      game.currentNightStep = 'don_check';
+      runAutomatedNightStep(game);
+      return;
+    }
+    if (aliveDetective) {
+      game.currentNightStep = 'detective_check';
+      runAutomatedNightStep(game);
+      return;
+    }
+    if (aliveDoctor) {
+      game.currentNightStep = 'doctor_heal';
+      runAutomatedNightStep(game);
+      return;
+    }
+    if (aliveSerial) {
+      game.currentNightStep = 'serial_kill';
+      runAutomatedNightStep(game);
+      return;
+    }
+  } else if (current === 'don_check') {
+    if (aliveDetective) {
+      game.currentNightStep = 'detective_check';
+      runAutomatedNightStep(game);
+      return;
+    }
+    if (aliveDoctor) {
+      game.currentNightStep = 'doctor_heal';
+      runAutomatedNightStep(game);
+      return;
+    }
+    if (aliveSerial) {
+      game.currentNightStep = 'serial_kill';
+      runAutomatedNightStep(game);
+      return;
+    }
+  } else if (current === 'detective_check') {
+    if (aliveDoctor) {
+      game.currentNightStep = 'doctor_heal';
+      runAutomatedNightStep(game);
+      return;
+    }
+    if (aliveSerial) {
+      game.currentNightStep = 'serial_kill';
+      runAutomatedNightStep(game);
+      return;
+    }
+  } else if (current === 'doctor_heal') {
+    if (aliveSerial) {
+      game.currentNightStep = 'serial_kill';
+      runAutomatedNightStep(game);
+      return;
+    }
+  }
+
+  // All night roles completed -> Resolve Night!
+  resolveNightOutcome(game);
+}
+
+function resolveNightOutcome(game) {
+  clearRoomNightTimer(game.roomCode);
+  const host = game.players.find(p => p.isHost);
+  const hostTarget = host ? (host.socketId || host.id) : null;
+
+  if (hostTarget) {
+    io.to(hostTarget).emit('playAudioPrompt', {
+      text: 'იძინებს ყველა. იღვიძებს ქალაქი.',
+      duration: 4
+    });
+  }
+
+  setTimeout(() => {
+    const deadThisNight = new Set();
+    const mafiaTarget = game.nightActions.mafiaTarget;
+    const doctorTarget = game.nightActions.doctorTarget;
+    const serialTarget = game.nightActions.serialKillerTarget;
+
+    if (doctorTarget) {
+      const healedPlayer = game.players.find(p => p.id === doctorTarget);
+      if (healedPlayer && healedPlayer.healedRounds.length === 0) {
+        healedPlayer.healedRounds.push(game.roundNumber);
+      }
+    }
+
+    if (mafiaTarget && mafiaTarget !== doctorTarget) {
+      deadThisNight.add(mafiaTarget);
+      const p = game.players.find(pl => pl.id === mafiaTarget);
+      if (p) {
+        p.eliminatedBy = 'night_mafia';
+        p.eliminatedRound = game.roundNumber;
+      }
+    }
+
+    if (serialTarget && serialTarget !== 'skip' && serialTarget !== doctorTarget) {
+      deadThisNight.add(serialTarget);
+      game.nightActions.serialKillsUsed += 1;
+      const p = game.players.find(pl => pl.id === serialTarget);
+      if (p) {
+        p.eliminatedBy = 'night_serial';
+        p.eliminatedRound = game.roundNumber;
+      }
+    }
+
+    deadThisNight.forEach(deadId => {
+      const deadP = game.players.find(p => p.id === deadId);
+      if (deadP) deadP.isAlive = false;
+    });
+
+    game.lastNightDeaths = Array.from(deadThisNight);
+    game.phase = 'day_discussion';
+
+    const alivePlayers = game.players.filter(p => p.isAlive);
+    if (game.firstSpeakerId) {
+      const allPlayers = game.players;
+      const lastIndex = allPlayers.findIndex(p => p.id === game.firstSpeakerId);
+      let nextFirst = null;
+      for (let i = 1; i <= allPlayers.length; i++) {
+        const candidate = allPlayers[(lastIndex + i) % allPlayers.length];
+        if (candidate.isAlive) {
+          nextFirst = candidate;
+          break;
+        }
+      }
+      game.firstSpeakerId = nextFirst ? nextFirst.id : (alivePlayers[0]?.id || null);
+    } else {
+      game.firstSpeakerId = alivePlayers[0]?.id || null;
+    }
+    game.currentSpeakerId = game.firstSpeakerId;
+    game.speakerTimeLeft = game.config.daySpeechSeconds;
+    game.isSpeakerTimerRunning = false;
+
+    game.voting = {
+      nominatedPlayers: [],
+      currentDefenseIndex: 0,
+      defenseTimeLeft: game.config.defenseSpeechSeconds,
+      isDefenseActive: false,
+      votes: {},
+      tiedCandidates: [],
+      isTieResolution: false,
+      isBothEliminateQuestion: false
+    };
+
+    const winResult = checkWinCondition(game);
+    if (winResult) {
+      game.phase = 'game_over';
+      game.winner = winResult.winner;
+      game.winnerReason = winResult.reason;
+    }
+
+    broadcastGameState(game);
+  }, 4000);
+}
+
+  // 6. Start Night 1 (Introduction)
   socket.on('startNight1', ({ roomCode, playerId }) => {
     const game = updatePlayerSocket(roomCode, playerId);
     if (!game) return;
@@ -393,7 +714,6 @@ io.on('connection', (socket) => {
     game.phase = 'night_1_intro';
     game.roundNumber = 1;
     game.currentNightStep = 'mafia_intro';
-    game.nightStepTimeLeft = game.config.nightDurationSeconds;
     game.isNightStepTimerRunning = true;
 
     game.nightActions = {
@@ -407,12 +727,7 @@ io.on('connection', (socket) => {
       serialKillsUsed: 0
     };
 
-    broadcastGameState(game);
-
-    io.to(player.socketId || player.id).emit('playAudioSequence', {
-      type: 'night_1_intro',
-      nightDuration: game.config.nightDurationSeconds
-    });
+    runAutomatedNightStep(game);
   });
 
   // 7. Start Day 1
@@ -422,6 +737,7 @@ io.on('connection', (socket) => {
     const player = game.players.find(p => p.id === playerId || p.socketId === socket.id);
     if (!player?.isHost) return;
 
+    clearRoomNightTimer(game.roomCode);
     game.phase = 'day_1_intro';
     game.roundNumber = 1;
 
@@ -434,7 +750,7 @@ io.on('connection', (socket) => {
 
     broadcastGameState(game);
 
-    io.to(player.socketId || player.id).emit('playAudioCue', { cue: 'wake_city' });
+    io.to(player.socketId || player.id).emit('playAudioPrompt', { text: 'იღვიძებს ქალაქი' });
   });
 
   // 8. Day Speaker Timer Controls
@@ -488,7 +804,6 @@ io.on('connection', (socket) => {
     }
 
     game.currentNightStep = 'mafia_kill';
-    game.nightStepTimeLeft = game.config.nightDurationSeconds;
     game.isNightStepTimerRunning = true;
 
     game.nightActions.mafiaTarget = null;
@@ -499,16 +814,7 @@ io.on('connection', (socket) => {
     game.nightActions.doctorTarget = null;
     game.nightActions.serialKillerTarget = null;
 
-    broadcastGameState(game);
-
-    io.to(player.socketId || player.id).emit('playAudioSequence', {
-      type: 'night_action_flow',
-      hasDon: game.config.hasDon,
-      hasDetective: game.config.hasDetective,
-      hasDoctor: game.config.hasDoctor,
-      hasSerialKiller: game.config.hasSerialKiller,
-      nightDuration: game.config.nightDurationSeconds
-    });
+    runAutomatedNightStep(game);
   });
 
   socket.on('setNightStep', ({ roomCode, step, playerId }) => {

@@ -216,116 +216,156 @@ export const NightPhaseView: React.FC<NightPhaseViewProps> = ({ gameState }) => 
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
               <StepIcon className="w-4 h-4" />
-              შენი სვლაა!
+              {isNight1 ? 'გაცნობის ფაზა' : 'შენი სვლაა!'}
             </span>
-            <span className="text-xs text-slate-400 font-medium">აირჩიე სამიზნე:</span>
+            <span className="text-xs text-slate-400 font-medium">
+              {isNight1 ? 'მკვლელობა არ ხდება' : 'აირჩიე სამიზნე:'}
+            </span>
           </div>
 
-          {/* Detective Instant Feedback Box */}
-          {currentStep === 'detective_check' && nightActions.detectiveCheckResult !== null && (
-            <div className={`p-4 rounded-2xl mb-4 border text-center animate-scale-in ${
-              nightActions.detectiveCheckResult 
-                ? 'bg-rose-950/80 border-rose-600 text-rose-200' 
-                : 'bg-emerald-950/80 border-emerald-600 text-emerald-200'
-            }`}>
-              <span className="text-xs uppercase font-bold block mb-1">გადამოწმების შედეგი:</span>
-              <span className="text-lg font-extrabold font-serif-title">
-                {nightActions.detectiveCheckResult ? '🔴 მაფიაა!' : '🟢 მშვიდობიანია'}
-              </span>
-            </div>
-          )}
-
-          {/* Don Instant Feedback Box */}
-          {currentStep === 'don_check' && nightActions.donCheckResult !== null && (
-            <div className={`p-4 rounded-2xl mb-4 border text-center animate-scale-in ${
-              nightActions.donCheckResult 
-                ? 'bg-blue-950/80 border-blue-600 text-blue-200' 
-                : 'bg-slate-900 border-slate-700 text-slate-300'
-            }`}>
-              <span className="text-xs uppercase font-bold block mb-1">გადამოწმების შედეგი:</span>
-              <span className="text-lg font-extrabold font-serif-title">
-                {nightActions.donCheckResult ? '🔍 არის დეტექტივი!' : '❌ არ არის დეტექტივი'}
-              </span>
-            </div>
-          )}
-
-          {/* Serial Killer Kills Used Counter & Skip Button */}
-          {currentStep === 'serial_kill' && (
-            <div className="mb-4">
-              <div className="flex justify-between items-center bg-purple-950/40 border border-purple-800/40 p-3 rounded-2xl text-xs text-purple-200 mb-3">
-                <span>დარჩენილი მკვლელობები:</span>
-                <span className="font-bold font-mono text-sm text-purple-300">
-                  {2 - (nightActions.serialKillsUsed || 0)} / 2
-                </span>
+          {/* Night 1 Mafia Introduction Briefing Card (NO VICTIM SELECTION) */}
+          {isNight1 ? (
+            <div className="space-y-3">
+              <div className="bg-rose-950/40 border border-rose-800/40 p-4 rounded-2xl text-center">
+                <Skull className="w-10 h-10 text-rose-400 mx-auto mb-2" />
+                <h4 className="font-bold text-white text-base mb-1 font-serif-title">
+                  გაიცანით თქვენი გუნდი
+                </h4>
+                <p className="text-xs text-slate-300 leading-relaxed max-w-xs mx-auto">
+                  პირველი ღამე მხოლოდ გაცნობითია. შეათანხმეთ ჟესტები და დაგეგმეთ მომავალი სვლები.
+                </p>
               </div>
 
-              <button
-                onClick={handleSkipSerial}
-                className={`w-full py-2.5 rounded-xl border text-xs font-bold transition-all btn-press mb-3 ${
-                  selectedTarget === 'skip' || nightActions.serialKillerTarget === 'skip'
-                    ? 'bg-purple-600 text-white border-purple-400'
-                    : 'bg-slate-900/90 text-slate-300 border-slate-700 hover:border-purple-500'
-                }`}
-              >
-                ⏭️ სვლის გამოტოვება (შენახვა)
-              </button>
+              {/* Teammates List */}
+              {myPlayer?.mafiaTeam && (
+                <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-2xl">
+                  <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wider block mb-2">
+                    შენი პარტნიორები:
+                  </span>
+                  <div className="space-y-1.5">
+                    {myPlayer.mafiaTeam.map((m) => (
+                      <div key={m.id} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800/80">
+                        <span className="font-semibold text-white">{m.name}</span>
+                        <span className="text-[10px] text-rose-400 font-mono">
+                          {m.isDon ? 'დონი (ლიდერი 👑)' : 'მაფია'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+          ) : (
+            <>
+              {/* Detective Instant Feedback Box */}
+              {currentStep === 'detective_check' && nightActions.detectiveCheckResult !== null && (
+                <div className={`p-4 rounded-2xl mb-4 border text-center animate-scale-in ${
+                  nightActions.detectiveCheckResult 
+                    ? 'bg-rose-950/80 border-rose-600 text-rose-200' 
+                    : 'bg-emerald-950/80 border-emerald-600 text-emerald-200'
+                }`}>
+                  <span className="text-xs uppercase font-bold block mb-1">გადამოწმების შედეგი:</span>
+                  <span className="text-lg font-extrabold font-serif-title">
+                    {nightActions.detectiveCheckResult ? '🔴 მაფიაა!' : '🟢 მშვიდობიანია'}
+                  </span>
+                </div>
+              )}
 
-          {/* Target Players Selection Grid */}
-          <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
-            {alivePlayers.map((player) => {
-              const isSelected = (selectedTarget === player.id) ||
-                (currentStep === 'mafia_kill' && nightActions.mafiaTarget === player.id) ||
-                (currentStep === 'detective_check' && nightActions.detectiveCheckTarget === player.id) ||
-                (currentStep === 'don_check' && nightActions.donCheckTarget === player.id) ||
-                (currentStep === 'doctor_heal' && nightActions.doctorTarget === player.id) ||
-                (currentStep === 'serial_kill' && nightActions.serialKillerTarget === player.id);
+              {/* Don Instant Feedback Box */}
+              {currentStep === 'don_check' && nightActions.donCheckResult !== null && (
+                <div className={`p-4 rounded-2xl mb-4 border text-center animate-scale-in ${
+                  nightActions.donCheckResult 
+                    ? 'bg-blue-950/80 border-blue-600 text-blue-200' 
+                    : 'bg-slate-900 border-slate-700 text-slate-300'
+                }`}>
+                  <span className="text-xs uppercase font-bold block mb-1">გადამოწმების შედეგი:</span>
+                  <span className="text-lg font-extrabold font-serif-title">
+                    {nightActions.donCheckResult ? '🔍 არის დეტექტივი!' : '❌ არ არის დეტექტივი'}
+                  </span>
+                </div>
+              )}
 
-              // Doctor Rule: Cannot heal player who was already healed before
-              const isDoctorStep = currentStep === 'doctor_heal';
-              const isHealDisabled = isDoctorStep && (player.healedCount || 0) > 0;
-
-              return (
-                <button
-                  key={player.id}
-                  disabled={isHealDisabled}
-                  onClick={() => handleSelectTarget(player.id)}
-                  className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-200 btn-press ${
-                    isHealDisabled 
-                      ? 'bg-slate-950/40 border-slate-800/80 text-slate-600 cursor-not-allowed opacity-50'
-                      : isSelected
-                        ? 'bg-rose-950/70 border-rose-500 text-white shadow-lg shadow-rose-950/60 ring-1 ring-rose-500'
-                        : 'bg-slate-900/80 border-slate-800/80 text-slate-200 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                      isSelected ? 'bg-rose-600 text-white shadow-md' : 'bg-slate-800 text-slate-400'
-                    }`}>
-                      {player.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="text-left">
-                      <span className="font-semibold text-sm block">{player.name}</span>
-                      {isHealDisabled && (
-                        <span className="text-[10px] text-amber-400/80">⚠️ უკვე ერთხელ გადაარჩინე</span>
-                      )}
-                      {player.id === myPlayer?.id && (
-                        <span className="text-[10px] text-slate-400">(შენ)</span>
-                      )}
-                    </div>
+              {/* Serial Killer Kills Used Counter & Skip Button */}
+              {currentStep === 'serial_kill' && (
+                <div className="mb-4">
+                  <div className="flex justify-between items-center bg-purple-950/40 border border-purple-800/40 p-3 rounded-2xl text-xs text-purple-200 mb-3">
+                    <span>დარჩენილი მკვლელობები:</span>
+                    <span className="font-bold font-mono text-sm text-purple-300">
+                      {2 - (nightActions.serialKillsUsed || 0)} / 2
+                    </span>
                   </div>
 
-                  {isSelected && (
-                    <div className="flex items-center gap-1.5 text-xs text-rose-400 font-bold bg-rose-950/90 px-2.5 py-1 rounded-xl border border-rose-600/60 animate-scale-in">
-                      <Check className="w-3.5 h-3.5" />
-                      <span>არჩეულია</span>
+                  <button
+                    onClick={handleSkipSerial}
+                    className={`w-full py-2.5 rounded-xl border text-xs font-bold transition-all btn-press mb-3 ${
+                      selectedTarget === 'skip' || nightActions.serialKillerTarget === 'skip'
+                        ? 'bg-purple-600 text-white border-purple-400'
+                        : 'bg-slate-900/90 text-slate-300 border-slate-700 hover:border-purple-500'
+                    }`}
+                  >
+                    ⏭️ სვლის გამოტოვება (შენახვა)
+                  </button>
+                </div>
+              )}
+
+          {/* Target Players Selection Grid (Night 2+) */}
+          {!isNight1 && (
+            <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+              {alivePlayers.map((player) => {
+                const isSelected = (selectedTarget === player.id) ||
+                  (currentStep === 'mafia_kill' && nightActions.mafiaTarget === player.id) ||
+                  (currentStep === 'detective_check' && nightActions.detectiveCheckTarget === player.id) ||
+                  (currentStep === 'don_check' && nightActions.donCheckTarget === player.id) ||
+                  (currentStep === 'doctor_heal' && nightActions.doctorTarget === player.id) ||
+                  (currentStep === 'serial_kill' && nightActions.serialKillerTarget === player.id);
+
+                // Doctor Rule: Cannot heal player who was already healed before
+                const isDoctorStep = currentStep === 'doctor_heal';
+                const isHealDisabled = isDoctorStep && (player.healedCount || 0) > 0;
+
+                return (
+                  <button
+                    key={player.id}
+                    disabled={isHealDisabled}
+                    onClick={() => handleSelectTarget(player.id)}
+                    className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-200 btn-press ${
+                      isHealDisabled 
+                        ? 'bg-slate-950/40 border-slate-800/80 text-slate-600 cursor-not-allowed opacity-50'
+                        : isSelected
+                          ? 'bg-rose-950/70 border-rose-500 text-white shadow-lg shadow-rose-950/60 ring-1 ring-rose-500'
+                          : 'bg-slate-900/80 border-slate-800/80 text-slate-200 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                        isSelected ? 'bg-rose-600 text-white shadow-md' : 'bg-slate-800 text-slate-400'
+                      }`}>
+                        {player.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="text-left">
+                        <span className="font-semibold text-sm block">{player.name}</span>
+                        {isHealDisabled && (
+                          <span className="text-[10px] text-amber-400/80">⚠️ უკვე ერთხელ გადაარჩინე</span>
+                        )}
+                        {player.id === myPlayer?.id && (
+                          <span className="text-[10px] text-slate-400">(შენ)</span>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+
+                    {isSelected && (
+                      <div className="flex items-center gap-1.5 text-xs text-rose-400 font-bold bg-rose-950/90 px-2.5 py-1 rounded-xl border border-rose-600/60 animate-scale-in">
+                        <Check className="w-3.5 h-3.5" />
+                        <span>არჩეულია</span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+            </>
+          )}
         </div>
       ) : (
         /* Sleeping State for Inactive Players */

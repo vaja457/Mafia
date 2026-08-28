@@ -36,39 +36,11 @@ export const App: React.FC = () => {
       setTimeout(() => setErrorMessage(null), 4000);
     });
 
-    // Smart Audio Sequence Triggers on Host Device
-    socketClient.on('playAudioSequence', (data: any) => {
-      if (data.type === 'night_1_intro') {
-        const dur = data.nightDuration || 25;
+    // Realtime Voice Prompt from Server
+    socketClient.on('playAudioPrompt', (data: { text: string; duration?: number }) => {
+      if (data?.text) {
         audioManager.startAmbientMusic();
-
-        // 1. City Sleeps
-        audioManager.speak('იძინებს ქალაქი', () => {
-          // 2. 10s pause -> Mafia Intro
-          setTimeout(() => {
-            audioManager.speak(`იღვიძებს მაფია და ეცნობა ერთმანეთს, მაფიას აქვს ${dur} წამი მოსაფიქრებლად`, () => {
-              // 3. Wait duration -> Mafia sleeps
-              setTimeout(() => {
-                audioManager.speak('იძინებს მაფია', () => {
-                  // 4. Short pause -> City wakes
-                  setTimeout(() => {
-                    audioManager.playMorningChime();
-                    audioManager.speak('იღვიძებს ქალაქი');
-                  }, 4000);
-                });
-              }, dur * 1000);
-            });
-          }, 8000);
-        });
-      } else if (data.type === 'night_action_flow') {
-        const dur = data.nightDuration || 25;
-        audioManager.startAmbientMusic();
-
-        audioManager.speak('იძინებს ქალაქი', () => {
-          setTimeout(() => {
-            audioManager.speak(`იღვიძებს მაფია და ირჩევს მსხვერპლს, მაფიას აქვს ${dur} წამი მოსაფიქრებლად`);
-          }, 4000);
-        });
+        audioManager.speak(data.text);
       }
     });
 

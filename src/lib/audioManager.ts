@@ -21,6 +21,23 @@ class AudioManager {
     // AudioContext will be initialized on first user interaction
   }
 
+  /**
+   * Unlock audio context and iOS speech synthesis on user gesture
+   */
+  public unlockAudio() {
+    this.init();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+    // Warm up speech synthesis for iOS Safari
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.resume();
+      const warmUp = new SpeechSynthesisUtterance('');
+      warmUp.volume = 0.01;
+      window.speechSynthesis.speak(warmUp);
+    }
+  }
+
   public init() {
     if (!this.ctx) {
       const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -152,9 +169,11 @@ class AudioManager {
   }
 
   /**
-   * Speak Georgian Voice Prompt with Audio Ducking
+   * Speak Georgian Voice Prompt with Audio Ducking & Fallback
    */
   public speak(text: string, onEnd?: () => void) {
+    this.unlockAudio();
+
     if (this.onSubtitleCallback) {
       this.onSubtitleCallback(text);
     }
@@ -165,26 +184,56 @@ class AudioManager {
     }
 
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel(); // clear previous
+      try {
+        window.speechSynthesis.cancel();
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'ka-GE';
-      utterance.rate = 0.92;
-      utterance.pitch = 0.95;
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        // Find best voice available on device
+        const voices = window.speechSynthesis.getVoices();
+        const georgianVoice = voices.find(v => v.lang.includes('ka') || v.lang.includes('GE'));
+        if (georgianVoice) {
+          utterance.voice = georgianVoice;
+        }
 
-      // Estimate speech duration based on text length (~80ms per char)
-      const estimatedDuration = Math.max(2000, text.length * 85);
-      this.duckMusic(estimatedDuration + 800);
+        utterance.lang = 'ka-GE';
+        utterance.rate = 0.88;
+        utterance.pitch = 0.95;
+        utterance.volume = 1.0;
 
-      utterance.onend = () => {
-        if (onEnd) onEnd();
-      };
+        const estimatedDuration = Math.max(2500, text.length * 95);
+        this.duckMusic(estimatedDuration + 600);
 
-      utterance.onerror = () => {
-        if (onEnd) onEnd();
-      };
+        let hasEnded = false;
+        utterance.onend = () => {
+          if (!hasEnded) {
+            hasEnded = true;
+            if (onEnd) onEnd();
+          }
+        };
 
-      window.speechSynthesis.speak(utterance);
+        utterance.onerror = (e) => {
+          console.warn('Speech synthesis error:', e);
+          if (!hasEnded) {
+            hasEnded = true;
+            if (onEnd) onEnd();
+          }
+        };
+
+        // Fallback safety timeout in case onend never fires on some mobile browsers
+        setTimeout(() => {
+          if (!hasEnded) {
+            hasEnded = true;
+            if (onEnd) onEnd();
+          }
+        }, estimatedDuration + 500);
+
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.warn('Speech synthesis exception:', err);
+        this.duckMusic(3000);
+        if (onEnd) setTimeout(onEnd, 3000);
+      }
     } else {
       this.duckMusic(3000);
       if (onEnd) setTimeout(onEnd, 3000);
