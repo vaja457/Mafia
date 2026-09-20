@@ -395,18 +395,74 @@ export const NightPhaseView: React.FC<NightPhaseViewProps> = ({ gameState }) => 
           )}
         </div>
       ) : (
-        /* Sleeping State for Inactive Players */
-        <div className="glass-panel rounded-3xl p-8 mb-5 border border-slate-800 text-center flex flex-col items-center justify-center min-h-[260px]">
-          <div className="w-20 h-20 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center mb-4 relative">
-            <Moon className="w-9 h-9 text-slate-500 animate-pulse" />
-            <div className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-indigo-500/60 animate-ping" />
+        /* Inactive / Sleeping State for Non-Active Players with HOST MODERATOR PANEL */
+        <div className="glass-panel rounded-3xl p-6 mb-5 border border-slate-800 text-center flex flex-col items-center justify-center">
+          {/* Big Live Countdown Timer (Always visible to Host & Sleeping Players) */}
+          <div className="w-full bg-slate-950/60 border border-slate-800 rounded-2xl p-4 mb-4 text-center">
+            <span className="text-[11px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+              {stepDetails.title} (ფიქრის დრო)
+            </span>
+            <div className="flex items-center justify-center gap-2">
+              <Clock className="w-6 h-6 text-rose-500 animate-pulse" />
+              <span className="font-mono text-3xl sm:text-4xl font-black text-rose-400">
+                {formatSeconds(timeLeft)}
+              </span>
+            </div>
           </div>
-          <h3 className="text-lg font-bold text-slate-300 font-serif-title mb-1">
+
+          <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center mb-3 relative">
+            <Moon className="w-8 h-8 text-slate-500 animate-pulse" />
+            <div className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-indigo-500/60 animate-ping" />
+          </div>
+
+          <h3 className="text-lg font-bold text-slate-200 font-serif-title mb-1">
             ქალაქს სძინავს...
           </h3>
-          <p className="text-xs text-slate-500 max-w-xs">
-            დახუჭეთ თვალები და დაელოდეთ წამყვანის ხმოვან შეტყობინებას.
+          <p className="text-xs text-slate-400 max-w-xs mb-4">
+            დახუჭეთ თვალები და დაელოდეთ წამყვანის სიგნალს.
           </p>
+
+          {/* Host Moderator Override Controls */}
+          {isHost && (
+            <div className="w-full border-t border-slate-800/80 pt-4 mt-2 space-y-2.5 animate-fade-in">
+              <div className="flex items-center justify-between text-xs text-amber-300 font-bold px-1">
+                <span className="flex items-center gap-1.5">
+                  <Crown className="w-4 h-4 text-amber-400" />
+                  ჰოსტის მართვის პანელი
+                </span>
+                <span className="text-[10px] text-slate-400 font-normal">
+                  (ავტომატურად გადავა 00:00-ზე)
+                </span>
+              </div>
+
+              <button
+                onClick={handleHostAdvanceStep}
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-amber-950/50 transition-all btn-press text-xs font-serif-title"
+              >
+                <FastForward className="w-4 h-4" />
+                <span>⏩ სვლის დაჩქარება (შემდეგი როლი)</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Host Controls for Active Turn */}
+      {isHost && isMyTurn() && (
+        <div className="glass-panel rounded-2xl p-4 mb-4 border border-slate-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+              <Crown className="w-4 h-4 text-amber-400" />
+              <span>ჰოსტის მართვა</span>
+            </div>
+            <button
+              onClick={handleHostAdvanceStep}
+              className="flex items-center gap-1.5 text-xs bg-slate-900 hover:bg-slate-800 text-slate-200 px-3 py-1.5 rounded-xl border border-slate-700 transition-all btn-press"
+            >
+              <FastForward className="w-3.5 h-3.5 text-amber-400" />
+              <span>შემდეგი როლი ⏩</span>
+            </button>
+          </div>
         </div>
       )}
 
