@@ -186,20 +186,38 @@ export const NightPhaseView: React.FC<NightPhaseViewProps> = ({ gameState }) => 
   const stepDetails = getStepDetails();
   const StepIcon = stepDetails.icon;
 
+  const timeLeft = gameState.nightStepTimeLeft !== undefined ? gameState.nightStepTimeLeft : 60;
+  const maxTime = gameState.config?.nightDurationSeconds || 60;
+  const progressPercent = Math.min(100, Math.max(0, (timeLeft / maxTime) * 100));
+
+  const formatSeconds = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="w-full max-w-lg mx-auto pb-24 animate-fade-in">
       {/* Night Atmosphere Header */}
       <div className="glass-panel rounded-3xl p-5 mb-5 border border-indigo-500/20 text-center relative overflow-hidden shadow-2xl">
         <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-48 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold mb-3 border shadow-sm backdrop-blur-md transition-all">
-          <Moon className="w-3.5 h-3.5 text-indigo-400" />
-          <span className="text-indigo-200">
-            {isNight1 ? 'პირველი გაცნობითი ღამე' : `ღამის ფაზა #${gameState.roundNumber}`}
-          </span>
+        <div className="flex items-center justify-between mb-3">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border shadow-sm backdrop-blur-md bg-indigo-950/70 border-indigo-700/60 text-indigo-200">
+            <Moon className="w-3.5 h-3.5 text-indigo-400" />
+            <span>
+              {isNight1 ? 'პირველი გაცნობითი ღამე' : `ღამის ფაზა #${gameState.roundNumber}`}
+            </span>
+          </div>
+
+          {/* 1-Minute Live Countdown Timer */}
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm backdrop-blur-md bg-rose-950/80 border-rose-600/60 text-rose-300 animate-pulse">
+            <Clock className="w-3.5 h-3.5 text-rose-400" />
+            <span className="font-mono text-sm">{formatSeconds(timeLeft)}</span>
+          </div>
         </div>
 
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center mb-3">
           <div className="p-3 rounded-2xl bg-indigo-950/50 border border-indigo-800/40 mb-2">
             <StepIcon className="w-8 h-8 text-indigo-300" />
           </div>
@@ -207,6 +225,14 @@ export const NightPhaseView: React.FC<NightPhaseViewProps> = ({ gameState }) => 
             {stepDetails.title}
           </h2>
           <p className="text-xs text-slate-400 max-w-xs">{stepDetails.desc}</p>
+        </div>
+
+        {/* Step Timer Progress Bar */}
+        <div className="w-full bg-slate-950/80 rounded-full h-2 overflow-hidden border border-indigo-900/50">
+          <div 
+            className="h-full bg-gradient-to-r from-rose-500 to-indigo-500 transition-all duration-1000 ease-linear rounded-full"
+            style={{ width: `${progressPercent}%` }}
+          />
         </div>
       </div>
 
@@ -218,9 +244,10 @@ export const NightPhaseView: React.FC<NightPhaseViewProps> = ({ gameState }) => 
               <StepIcon className="w-4 h-4" />
               {isNight1 ? 'გაცნობის ფაზა' : 'შენი სვლაა!'}
             </span>
-            <span className="text-xs text-slate-400 font-medium">
-              {isNight1 ? 'მკვლელობა არ ხდება' : 'აირჩიე სამიზნე:'}
-            </span>
+            <div className="flex items-center gap-1.5 bg-rose-950/70 border border-rose-800/60 px-2.5 py-1 rounded-xl text-xs font-mono font-bold text-rose-300">
+              <Clock className="w-3 h-3 text-rose-400" />
+              <span>{formatSeconds(timeLeft)}</span>
+            </div>
           </div>
 
           {/* Night 1 Mafia Introduction Briefing Card (NO VICTIM SELECTION) */}

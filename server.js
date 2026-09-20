@@ -388,8 +388,9 @@ io.on('connection', (socket) => {
     broadcastGameState(game);
   });
 
-// Map to hold active timers for rooms
+// Map to hold active timers and intervals for rooms
 const roomNightTimers = new Map();
+const roomNightIntervals = new Map();
 
 function clearRoomNightTimer(roomCode) {
   const t = roomNightTimers.get(roomCode);
@@ -397,6 +398,33 @@ function clearRoomNightTimer(roomCode) {
     clearTimeout(t);
     roomNightTimers.delete(roomCode);
   }
+  const i = roomNightIntervals.get(roomCode);
+  if (i) {
+    clearInterval(i);
+    roomNightIntervals.delete(roomCode);
+  }
+}
+
+function startNightCountdown(game, durationSec, onComplete) {
+  clearRoomNightTimer(game.roomCode);
+  game.nightStepTimeLeft = durationSec;
+  game.isNightStepTimerRunning = true;
+  broadcastGameState(game);
+
+  const interval = setInterval(() => {
+    game.nightStepTimeLeft -= 1;
+    if (game.nightStepTimeLeft <= 0) {
+      clearRoomNightTimer(game.roomCode);
+      game.nightStepTimeLeft = 0;
+      game.isNightStepTimerRunning = false;
+      broadcastGameState(game);
+      onComplete();
+    } else {
+      broadcastGameState(game);
+    }
+  }, 1000);
+
+  roomNightIntervals.set(game.roomCode, interval);
 }
 
 /**
@@ -406,26 +434,16 @@ function runAutomatedNightStep(game) {
   clearRoomNightTimer(game.roomCode);
   const cfg = game.config;
   const current = game.currentNightStep;
-  const host = game.players.find(p => p.isHost);
-  const hostTarget = host ? (host.socketId || host.id) : null;
-
-  const aliveDon = game.players.some(p => p.role === 'don' && p.isAlive);
-  const aliveDetective = game.players.some(p => p.role === 'detective' && p.isAlive);
-  const aliveDoctor = game.players.some(p => p.role === 'doctor' && p.isAlive);
-  const aliveSerial = game.players.some(p => p.role === 'serial_killer' && p.isAlive);
+  const stepDuration = cfg.nightDurationSeconds || 60; // 1 minute per role step
 
   // 1. First Night Flow (Intro only)
   if (game.phase === 'night_1_intro') {
-    const dur = cfg.nightDurationSeconds || 25;
-    game.nightStepTimeLeft = dur;
-    broadcastGameState(game);
-
     io.to(game.roomCode).emit('playAudioPrompt', {
-      text: `იძინებს ქალაქი. იღვიძებს მაფია და ეცნობა ერთმანეთს, მაფიას აქვს ${dur} წამი მოსაფიქრებლად.`,
-      duration: dur
+      text: `იძინებს ქალაქი. იღვიძებს მაფია და ეცნობა ერთმანეთს, მაფიას აქვს ${stepDuration} წამი მოსაფიქრებლად.`,
+      duration: stepDuration
     });
 
-    const timer = setTimeout(() => {
+    startNightCountdown(game, stepDuration, () => {
       if (game.phase !== 'night_1_intro') return;
       io.to(game.roomCode).emit('playAudioPrompt', {
         text: 'იძინებს მაფია. იღვიძებს ქალაქი.',
@@ -444,91 +462,66 @@ function runAutomatedNightStep(game) {
         game.isSpeakerTimerRunning = false;
         broadcastGameState(game);
       }, 4000);
-    }, dur * 1000);
-
-    roomNightTimers.set(game.roomCode, timer);
+    });
     return;
   }
 
   // 2. Action Night Flow (Night 2+)
   if (game.phase === 'night_action') {
-    const stepDuration = 15; // 15 seconds per individual special role
-
     if (current === 'mafia_kill') {
-      const dur = cfg.nightDurationSeconds || 25;
-      game.nightStepTimeLeft = dur;
-      broadcastGameState(game);
-
       io.to(game.roomCode).emit('playAudioPrompt', {
-        text: `იძინებს ქალაქი. იღვიძებს მაფია და ირჩევს მსხვერპლს, მაფიას აქვს ${dur} წამი მოსაფიქრებლად.`,
-        duration: dur
+        text: `იძინებს ქალაქი. იღვიძებს მაფია და ირჩევს მსხვერპლს, მაფიას აქვს ${stepDuration} წამი მოსაფიქრებლად.`,
+        duration: stepDuration
       });
 
-      const timer = setTimeout(() => {
+      startNightCountdown(game, stepDuration, () => {
         if (game.phase !== 'night_action') return;
         advanceToNextNightRole(game);
-      }, dur * 1000);
-      roomNightTimers.set(game.roomCode, timer);
+      });
     } 
     else if (current === 'don_check') {
-      game.nightStepTimeLeft = stepDuration;
-      broadcastGameState(game);
-
       io.to(game.roomCode).emit('playAudioPrompt', {
         text: `იძინებს მაფია. იღვიძებს დონი და ეძებს დეტექტივს, დონს აქვს ${stepDuration} წამი.`,
         duration: stepDuration
       });
 
-      const timer = setTimeout(() => {
+      startNightCountdown(game, stepDuration, () => {
         if (game.phase !== 'night_action') return;
         advanceToNextNightRole(game);
-      }, stepDuration * 1000);
-      roomNightTimers.set(game.roomCode, timer);
+      });
     }
     else if (current === 'detective_check') {
-      game.nightStepTimeLeft = stepDuration;
-      broadcastGameState(game);
-
       io.to(game.roomCode).emit('playAudioPrompt', {
         text: `იღვიძებს დეტექტივი და ამოწმებს მოთამაშეს, დეტექტივს აქვს ${stepDuration} წამი.`,
         duration: stepDuration
       });
 
-      const timer = setTimeout(() => {
+      startNightCountdown(game, stepDuration, () => {
         if (game.phase !== 'night_action') return;
         advanceToNextNightRole(game);
-      }, stepDuration * 1000);
-      roomNightTimers.set(game.roomCode, timer);
+      });
     }
     else if (current === 'doctor_heal') {
-      game.nightStepTimeLeft = stepDuration;
-      broadcastGameState(game);
-
       io.to(game.roomCode).emit('playAudioPrompt', {
         text: `იღვიძებს ექიმი და ჰილავს მოთამაშეს, ექიმს აქვს ${stepDuration} წამი.`,
         duration: stepDuration
       });
 
-      const timer = setTimeout(() => {
+      startNightCountdown(game, stepDuration, () => {
         if (game.phase !== 'night_action') return;
         advanceToNextNightRole(game);
-      }, stepDuration * 1000);
-      roomNightTimers.set(game.roomCode, timer);
+      });
     }
     else if (current === 'serial_kill') {
-      game.nightStepTimeLeft = stepDuration;
-      broadcastGameState(game);
-
       io.to(game.roomCode).emit('playAudioPrompt', {
         text: `იღვიძებს სერიული მკვლელი, სერიულს აქვს ${stepDuration} წამი.`,
         duration: stepDuration
       });
 
-      const timer = setTimeout(() => {
+      startNightCountdown(game, stepDuration, () => {
         if (game.phase !== 'night_action') return;
         advanceToNextNightRole(game);
-      }, stepDuration * 1000);
-      roomNightTimers.set(game.roomCode, timer);
+      });
     }
   }
 }

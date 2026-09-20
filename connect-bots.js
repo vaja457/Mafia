@@ -1,9 +1,10 @@
 import { io } from 'socket.io-client';
 
 const serverUrl = 'https://mafia-mfr1.onrender.com';
-const roomCode = process.argv[2] || 'D3CDS7';
+const roomCode = process.argv[2] || 'ZXTGE3';
+const botCount = parseInt(process.argv[3]) || 2;
 
-const botNames = [
+const allBotNames = [
   'სალომე 🌸',
   'ერეკლე ⚔️',
   'თამარი 👑',
@@ -12,6 +13,8 @@ const botNames = [
   'ლუკა 🎲',
   'დავითი 🛡️'
 ];
+
+const botNames = allBotNames.slice(0, botCount);
 
 console.log(`🤖 Connecting ${botNames.length} test players to room ${roomCode} at ${serverUrl}...`);
 

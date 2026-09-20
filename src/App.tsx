@@ -20,12 +20,16 @@ export const App: React.FC = () => {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Track phase & step transitions to guarantee audio triggers locally as well
+  // Track phase & step transitions to guarantee audio triggers locally as well (HOST ONLY)
   const prevStepRef = React.useRef<string | null>(null);
   const prevPhaseRef = React.useRef<string | null>(null);
 
   useEffect(() => {
     if (!gameState) return;
+
+    // ONLY the Host device acts as the master table speaker!
+    const isHost = gameState.myPlayer?.isHost;
+    if (!isHost) return;
 
     const currentKey = `${gameState.phase}_${gameState.currentNightStep}_${gameState.roundNumber}`;
     if (prevStepRef.current !== currentKey) {
@@ -52,7 +56,7 @@ export const App: React.FC = () => {
       }
       prevPhaseRef.current = gameState.phase;
     }
-  }, [gameState?.phase, gameState?.currentNightStep, gameState?.roundNumber]);
+  }, [gameState?.phase, gameState?.currentNightStep, gameState?.roundNumber, gameState?.myPlayer?.isHost]);
 
   useEffect(() => {
     socketClient.connect();
@@ -70,20 +74,21 @@ export const App: React.FC = () => {
       setTimeout(() => setErrorMessage(null), 4000);
     });
 
-    // Realtime Voice & Acoustic Role Call Prompt from Server
+    // Realtime Voice & Acoustic Role Call Prompt from Server (HOST ONLY)
     socketClient.on('playAudioPrompt', (data: { text: string; duration?: number }) => {
-      if (data?.text) {
+      if (data?.text && gameState?.myPlayer?.isHost) {
         audioManager.startAmbientMusic();
         audioManager.announcePrompt(data.text);
       }
     });
 
     socketClient.on('playAudioCue', (data: any) => {
-      if (data.cue === 'wake_city') {
-        audioManager.playMorningChime();
-        audioManager.speak('იღვიძებს ქალაქი');
-      } else if (data.cue === 'time_up_gong') {
-        audioManager.playGong();
+      if (gameState?.myPlayer?.isHost) {
+        if (data.cue === 'wake_city') {
+          audioManager.playMorningSunriseChime();
+        } else if (data.cue === 'time_up_gong') {
+          audioManager.playGong();
+        }
       }
     });
   }, []);
