@@ -1,6 +1,6 @@
 /**
- * 100% Guaranteed Web Audio Engine for Mafia Moderator
- * Includes all audio functions: chimes, speech, ambient music, and sound tests.
+ * Pure Acoustic Sound Signals Engine for Mafia Moderator
+ * NO robotic speech synthesis - 100% Pure, Distinct, High-Quality Chimes, Bells & Vibrations
  */
 
 class AudioManager {
@@ -43,7 +43,7 @@ class AudioManager {
         this.sfxGain.connect(this.masterGain);
 
         this.musicGain = this.ctx.createGain();
-        this.musicGain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        this.musicGain.gain.setValueAtTime(0.25, this.ctx.currentTime);
         this.musicGain.connect(this.masterGain);
       }
 
@@ -104,7 +104,7 @@ class AudioManager {
       this.isMusicPlaying = true;
 
       const now = this.ctx.currentTime;
-      const baseFreqs = [55, 110, 164.81, 220]; // A Minor chord
+      const baseFreqs = [55, 110, 164.81, 220]; // A Minor subtle noir drone
 
       baseFreqs.forEach((freq, i) => {
         if (!this.ctx || !this.musicGain) return;
@@ -116,9 +116,9 @@ class AudioManager {
         osc.frequency.setValueAtTime(freq, now);
 
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(300 + i * 40, now);
+        filter.frequency.setValueAtTime(280 + i * 35, now);
 
-        gain.gain.setValueAtTime(0.05 / (i + 1), now);
+        gain.gain.setValueAtTime(0.04 / (i + 1), now);
 
         osc.connect(filter);
         filter.connect(gain);
@@ -143,7 +143,10 @@ class AudioManager {
     } catch (e) {}
   }
 
-  public playChord(freqs: number[], type: OscillatorType = 'triangle', duration: number = 2.5, attack: number = 0.02) {
+  /**
+   * Play clean, musical, resonant chord
+   */
+  public playChord(freqs: number[], type: OscillatorType = 'triangle', duration: number = 2.8, stagger: number = 0.09) {
     try {
       this.unlockAudio();
       if (!this.ctx || !this.sfxGain || this.isMuted) return;
@@ -156,108 +159,106 @@ class AudioManager {
         const gain = this.ctx.createGain();
 
         osc.type = type;
-        osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+        osc.frequency.setValueAtTime(freq, now + idx * stagger);
 
-        gain.gain.setValueAtTime(0.0001, now + idx * 0.08);
-        gain.gain.linearRampToValueAtTime(0.6 / freqs.length + 0.2, now + idx * 0.08 + attack);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.08 + duration);
+        gain.gain.setValueAtTime(0.0001, now + idx * stagger);
+        gain.gain.linearRampToValueAtTime(0.65 / freqs.length + 0.25, now + idx * stagger + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * stagger + duration);
 
         osc.connect(gain);
         gain.connect(this.sfxGain);
 
-        osc.start(now + idx * 0.08);
-        osc.stop(now + idx * 0.08 + duration + 0.1);
+        osc.start(now + idx * stagger);
+        osc.stop(now + idx * stagger + duration + 0.1);
       });
     } catch (e) {}
   }
 
-  public testSound(): boolean {
-    this.unlockAudio();
-    this.vibrate([200, 100, 200]);
-    this.playChord([523.25, 659.25, 783.99, 1046.50], 'triangle', 3.0);
-    return true;
-  }
+  // ================= DISTINCT ROLE SOUND SIGNALS =================
 
-  public playMorningChime() {
-    this.playChord([523.25, 659.25, 783.99, 1046.50, 1318.51], 'triangle', 4.0);
-  }
-
-  public playDonWakeChime() {
-    this.playChord([293.66, 369.99, 440.00, 587.33], 'triangle', 2.8);
-  }
-
-  public speak(text: string, onEnd?: () => void) {
-    this.announcePrompt(text);
-    if (onEnd) setTimeout(onEnd, 3000);
-  }
-
-  public announcePrompt(text: string) {
-    try {
-      this.unlockAudio();
-
-      if (this.onSubtitleCallback) {
-        this.onSubtitleCallback(text);
-      }
-
-      const lower = text.toLowerCase();
-
-      if (lower.includes('იძინებს ქალაქი')) {
-        this.playChord([220, 196, 164.81, 130.81], 'sine', 3.0);
-        this.vibrate([250]);
-      } 
-      else if (lower.includes('იღვიძებს მაფია')) {
-        this.playChord([164.81, 207.65, 246.94, 329.63], 'sawtooth', 3.2);
-        this.vibrate([150, 100, 150]);
-      } 
-      else if (lower.includes('იღვიძებს დონი')) {
-        this.playChord([293.66, 369.99, 440.00, 587.33], 'triangle', 2.8);
-        this.vibrate([100, 60, 100, 60, 100]);
-      } 
-      else if (lower.includes('იღვიძებს დეტექტივი')) {
-        this.playChord([329.63, 493.88, 659.25, 987.77], 'sine', 2.5);
-        this.vibrate([100, 100, 250]);
-      } 
-      else if (lower.includes('იღვიძებს ექიმი')) {
-        this.playChord([261.63, 329.63, 392.00, 523.25], 'triangle', 3.0);
-        this.vibrate([80, 80, 80, 80]);
-      } 
-      else if (lower.includes('იღვიძებს სერიული')) {
-        this.playChord([138.59, 185.00, 277.18], 'sawtooth', 3.0);
-        this.vibrate([300, 120, 300]);
-      } 
-      else if (lower.includes('იღვიძებს ქალაქი')) {
-        this.playChord([523.25, 659.25, 783.99, 1046.50, 1318.51], 'triangle', 4.0);
-        this.vibrate([400, 150, 400]);
-      } 
-      else if (lower.includes('იძინებს')) {
-        this.playChord([320, 220, 160], 'sine', 1.5);
-        this.vibrate([100]);
-      }
-
-      if (!this.isMuted && 'speechSynthesis' in window) {
-        try {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(text);
-          const voices = window.speechSynthesis.getVoices();
-          const kaVoice = voices.find(v => v.lang.includes('ka') || v.lang.includes('GE'));
-          if (kaVoice) utterance.voice = kaVoice;
-
-          utterance.lang = 'ka-GE';
-          utterance.rate = 0.88;
-          utterance.pitch = 0.95;
-          utterance.volume = 1.0;
-          window.speechSynthesis.speak(utterance);
-        } catch (e) {}
-      }
-    } catch (e) {}
-  }
-
-  public playGong() {
-    this.unlockAudio();
+  /**
+   * 🌙 ქალაქის დაძინება (Night falls / City sleeps)
+   * Deep calm descending chimes
+   */
+  public playCitySleepChime() {
     this.vibrate([300]);
-    this.playChord([261.63, 329.63, 392.00, 523.25], 'triangle', 4.0);
+    this.playChord([261.63, 220.00, 174.61, 130.81], 'sine', 3.2, 0.14);
   }
 
+  /**
+   * 💀 მაფიის გაღვიძება (Mafia wakes up)
+   * Dark dramatic minor suspense strike
+   */
+  public playMafiaWakeChime() {
+    this.vibrate([180, 90, 180]);
+    this.playChord([146.83, 174.61, 220.00, 293.66], 'sawtooth', 3.5, 0.08);
+  }
+
+  /**
+   * 👑 დონის გაღვიძება (Don wakes up)
+   * Regal 4-tone brassy bell chime
+   */
+  public playDonWakeChime() {
+    this.vibrate([120, 60, 120, 60, 120]);
+    this.playChord([293.66, 369.99, 440.00, 587.33], 'triangle', 3.0, 0.1);
+  }
+
+  /**
+   * 🔍 დეტექტივის გაღვიძება (Detective wakes up)
+   * High crystalline investigative radar chime
+   */
+  public playDetectiveWakeChime() {
+    this.vibrate([100, 100, 300]);
+    this.playChord([392.00, 523.25, 659.25, 783.99, 1046.50], 'sine', 2.8, 0.07);
+  }
+
+  /**
+   * 💉 ექიმის გაღვიძება (Doctor wakes up)
+   * Warm healing pulse harmony
+   */
+  public playDoctorWakeChime() {
+    this.vibrate([80, 80, 80, 80]);
+    this.playChord([261.63, 329.63, 392.00, 523.25], 'triangle', 3.2, 0.12);
+  }
+
+  /**
+   * 🩸 სერიული მკვლელის გაღვიძება (Serial Killer wakes up)
+   * Low sinister dark tension pulse
+   */
+  public playSerialWakeChime() {
+    this.vibrate([350, 120, 350]);
+    this.playChord([130.81, 155.56, 185.00, 261.63], 'sawtooth', 3.5, 0.08);
+  }
+
+  /**
+   * 😴 როლის დაძინება (Current role goes to sleep)
+   * Quick 2-tone gentle downward fade
+   */
+  public playSleepTone() {
+    this.vibrate([120]);
+    this.playChord([440.00, 329.63, 220.00], 'sine', 1.4, 0.1);
+  }
+
+  /**
+   * ☀️ დილის გათენება (Morning sunrise / City wakes up)
+   * Loud bright festive church bells / sunrise fanfare
+   */
+  public playMorningSunriseChime() {
+    this.vibrate([450, 150, 450]);
+    this.playChord([523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98], 'triangle', 4.5, 0.12);
+  }
+
+  /**
+   * 🔔 1-წუთიანი სიტყვის ამოწურვის გონგი (Gong)
+   */
+  public playGong() {
+    this.vibrate([400]);
+    this.playChord([261.63, 329.63, 392.00, 523.25], 'triangle', 4.5, 0.02);
+  }
+
+  /**
+   * 💥 გასროლის / გავარდნის ხმა (Gunshot / Elimination)
+   */
   public playGunshot() {
     try {
       this.unlockAudio();
@@ -296,7 +297,58 @@ class AudioManager {
   public playTick() {
     this.unlockAudio();
     this.vibrate([40]);
-    this.playChord([1200], 'triangle', 0.08);
+    this.playChord([1200], 'triangle', 0.08, 0);
+  }
+
+  public testSound(): boolean {
+    this.unlockAudio();
+    this.playMorningSunriseChime();
+    return true;
+  }
+
+  /**
+   * Main Announce Dispatcher (Pure Sound Signals + Subtitle Banner)
+   */
+  public announcePrompt(text: string) {
+    try {
+      this.unlockAudio();
+
+      if (this.onSubtitleCallback) {
+        this.onSubtitleCallback(text);
+      }
+
+      const lower = text.toLowerCase();
+
+      if (lower.includes('იღვიძებს მაფია')) {
+        this.playMafiaWakeChime();
+      } 
+      else if (lower.includes('იღვიძებს დონი')) {
+        this.playDonWakeChime();
+      } 
+      else if (lower.includes('იღვიძებს დეტექტივი')) {
+        this.playDetectiveWakeChime();
+      } 
+      else if (lower.includes('იღვიძებს ექიმი')) {
+        this.playDoctorWakeChime();
+      } 
+      else if (lower.includes('იღვიძებს სერიული')) {
+        this.playSerialWakeChime();
+      } 
+      else if (lower.includes('იღვიძებს ქალაქი') || lower.includes('დილა')) {
+        this.playMorningSunriseChime();
+      } 
+      else if (lower.includes('იძინებს ქალაქი')) {
+        this.playCitySleepChime();
+      } 
+      else if (lower.includes('იძინებს')) {
+        this.playSleepTone();
+      }
+    } catch (e) {}
+  }
+
+  public speak(text: string, onEnd?: () => void) {
+    this.announcePrompt(text);
+    if (onEnd) setTimeout(onEnd, 2500);
   }
 }
 

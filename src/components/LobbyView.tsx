@@ -145,37 +145,77 @@ export const LobbyView: React.FC<LobbyViewProps> = ({ gameState, onOpenShareModa
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-xs">
-          <div className="bg-rose-950/40 border border-rose-800/40 rounded-xl p-2.5 text-center">
-            <Skull className="w-4 h-4 text-rose-400 mx-auto mb-1" />
+          <button 
+            type="button"
+            onClick={() => audioManager.playMafiaWakeChime()}
+            title="დააჭირეთ ხმის მოსასმენად"
+            className="bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 rounded-xl p-2.5 text-center transition-all btn-press group"
+          >
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <Skull className="w-4 h-4 text-rose-400" />
+              <Volume2 className="w-3 h-3 text-rose-500/70 group-hover:text-rose-400" />
+            </div>
             <span className="block font-bold text-rose-200">{config.mafiaCount} მაფია</span>
-            <span className="text-[10px] text-rose-400/80">{config.hasDon ? '(1 დონი)' : ''}</span>
-          </div>
+            <span className="text-[10px] text-rose-400/80">{config.hasDon ? '(1 დონი)' : 'ხმა 🔔'}</span>
+          </button>
 
-          <div className="bg-blue-950/40 border border-blue-800/40 rounded-xl p-2.5 text-center">
-            <Eye className="w-4 h-4 text-blue-400 mx-auto mb-1" />
+          <button 
+            type="button"
+            onClick={() => audioManager.playDetectiveWakeChime()}
+            title="დააჭირეთ ხმის მოსასმენად"
+            className="bg-blue-950/40 hover:bg-blue-900/60 border border-blue-800/40 rounded-xl p-2.5 text-center transition-all btn-press group"
+          >
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <Eye className="w-4 h-4 text-blue-400" />
+              <Volume2 className="w-3 h-3 text-blue-500/70 group-hover:text-blue-400" />
+            </div>
             <span className="block font-bold text-blue-200">{config.hasDetective ? '1 დეტექტივი' : '0 დეტექტივი'}</span>
-            <span className="text-[10px] text-blue-400/80">შემმოწმებელი</span>
-          </div>
+            <span className="text-[10px] text-blue-400/80">ხმა 🔔</span>
+          </button>
 
-          <div className="bg-emerald-950/40 border border-emerald-800/40 rounded-xl p-2.5 text-center">
-            <Stethoscope className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
+          <button 
+            type="button"
+            onClick={() => audioManager.playDoctorWakeChime()}
+            title="დააჭირეთ ხმის მოსასმენად"
+            className="bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-800/40 rounded-xl p-2.5 text-center transition-all btn-press group"
+          >
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <Stethoscope className="w-4 h-4 text-emerald-400" />
+              <Volume2 className="w-3 h-3 text-emerald-500/70 group-hover:text-emerald-400" />
+            </div>
             <span className="block font-bold text-emerald-200">{config.hasDoctor ? '1 ექიმი' : '0 ექიმი'}</span>
-            <span className="text-[10px] text-emerald-400/80">1 ჰილი/თამაშში</span>
-          </div>
+            <span className="text-[10px] text-emerald-400/80">ხმა 🔔</span>
+          </button>
 
-          <div className="bg-purple-950/40 border border-purple-800/40 rounded-xl p-2.5 text-center">
-            <Crosshair className="w-4 h-4 text-purple-400 mx-auto mb-1" />
+          <button 
+            type="button"
+            onClick={() => audioManager.playSerialWakeChime()}
+            title="დააჭირეთ ხმის მოსასმენად"
+            className="bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800/40 rounded-xl p-2.5 text-center transition-all btn-press group"
+          >
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <Crosshair className="w-4 h-4 text-purple-400" />
+              <Volume2 className="w-3 h-3 text-purple-500/70 group-hover:text-purple-400" />
+            </div>
             <span className="block font-bold text-purple-200">{config.hasSerialKiller ? '1 სერიული' : '0 სერიული'}</span>
-            <span className="text-[10px] text-purple-400/80">მაქს. 2 ქილი</span>
-          </div>
+            <span className="text-[10px] text-purple-400/80">ხმა 🔔</span>
+          </button>
 
-          <div className="col-span-2 bg-slate-900/60 border border-slate-800 rounded-xl p-2.5 flex items-center justify-center gap-2">
+          <button 
+            type="button"
+            onClick={() => audioManager.playMorningSunriseChime()}
+            title="დააჭირეთ გათენების ხმის მოსასმენად"
+            className="col-span-2 bg-slate-900/60 hover:bg-slate-850 border border-slate-800 rounded-xl p-2.5 flex items-center justify-center gap-2 transition-all btn-press group"
+          >
             <Shield className="w-4 h-4 text-slate-400" />
             <div>
               <span className="font-bold text-slate-200 block text-xs">{citizensCount} მოქალაქე</span>
-              <span className="text-[10px] text-slate-400">პატიოსანი ქალაქი</span>
+              <span className="text-[10px] text-amber-400/90 flex items-center gap-1">
+                <Volume2 className="w-3 h-3" />
+                გათენების ზარის მოსმენა ☀️
+              </span>
             </div>
-          </div>
+          </button>
         </div>
       </div>
 
